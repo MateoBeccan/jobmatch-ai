@@ -1,6 +1,7 @@
 package com.codercup.jobmatchai.service;
 
 import com.codercup.jobmatchai.dto.AnalysisResponse;
+import com.codercup.jobmatchai.exception.AiServiceTimeoutException;
 import com.codercup.jobmatchai.exception.AiServiceUnavailableException;
 import com.codercup.jobmatchai.exception.AnalysisConfigurationException;
 import com.codercup.jobmatchai.exception.InvalidAiResponseException;
@@ -12,10 +13,13 @@ import com.google.genai.errors.GenAiIOException;
 import com.google.genai.types.Content;
 import com.google.genai.types.GenerateContentConfig;
 import com.google.genai.types.GenerateContentResponse;
+import com.google.genai.types.HttpOptions;
 import com.google.genai.types.Part;
 import com.google.genai.types.Schema;
 import com.google.genai.types.Type;
 import java.io.IOException;
+import java.io.InterruptedIOException;
+import java.net.SocketTimeoutException;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -29,14 +33,20 @@ public class GeminiService {
 	private final ObjectMapper objectMapper;
 	private final String apiKey;
 	private final String model;
+	private final int timeoutMs;
 
 	public GeminiService(
 			@Value("${gemini.api.key:}") String apiKey,
-			@Value("${gemini.model}") String model
+			@Value("${gemini.model}") String model,
+			@Value("${gemini.timeout-ms}") int timeoutMs
 	) {
 		this.objectMapper = new ObjectMapper();
 		this.apiKey = apiKey;
 		this.model = model;
+		if (timeoutMs <= 0) {
+			throw new AnalysisConfigurationException("El timeout de Gemini debe ser mayor a 0 ms.");
+		}
+		this.timeoutMs = timeoutMs;
 	}
 
 	public AnalysisResponse analyze(String cvText, String jobDescription) {
@@ -71,29 +81,74 @@ public class GeminiService {
 	}
 
 	private String generateContent(String prompt) {
-		try (Client client = Client.builder().apiKey(apiKey).build()) {
+		try (Client client = buildClient()) {
 			GenerateContentResponse response = client.models.generateContent(model, prompt, buildConfig());
 			return response.text();
 		}
-		catch (ApiException | GenAiIOException exception) {
+		catch (ApiException exception) {
 			throw new AiServiceUnavailableException(
 					"El servicio de inteligencia artificial no esta disponible temporalmente.",
 					exception
 			);
+		}
+		catch (GenAiIOException exception) {
+			throw mapGeminiIOException(exception);
 		}
 	}
 
 	private String generateContent(Content content) {
-		try (Client client = Client.builder().apiKey(apiKey).build()) {
+		try (Client client = buildClient()) {
 			GenerateContentResponse response = client.models.generateContent(model, content, buildConfig());
 			return response.text();
 		}
-		catch (ApiException | GenAiIOException exception) {
+		catch (ApiException exception) {
 			throw new AiServiceUnavailableException(
 					"El servicio de inteligencia artificial no esta disponible temporalmente.",
 					exception
 			);
 		}
+		catch (GenAiIOException exception) {
+			throw mapGeminiIOException(exception);
+		}
+	}
+
+	private Client buildClient() {
+		return Client.builder()
+				.apiKey(apiKey)
+				.httpOptions(buildHttpOptions())
+				.build();
+	}
+
+	private HttpOptions buildHttpOptions() {
+		return HttpOptions.builder()
+				.timeout(timeoutMs)
+				.build();
+	}
+
+	private RuntimeException mapGeminiIOException(GenAiIOException exception) {
+		if (isTimeoutException(exception)) {
+			return new AiServiceTimeoutException(
+					"El servicio de inteligencia artificial tard\u00f3 demasiado en responder.",
+					exception
+			);
+		}
+
+		return new AiServiceUnavailableException(
+				"El servicio de inteligencia artificial no esta disponible temporalmente.",
+				exception
+		);
+	}
+
+	private boolean isTimeoutException(Throwable exception) {
+		Throwable current = exception;
+		while (current != null) {
+			if (current instanceof SocketTimeoutException || current instanceof InterruptedIOException) {
+				return true;
+			}
+			current = current.getCause();
+		}
+
+		return false;
 	}
 
 	private GenerateContentConfig buildConfig() {

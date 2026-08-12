@@ -37,7 +37,7 @@ class ActuatorHealthEndpointTest {
 
 		@Bean
 		GeminiService geminiService() {
-			return new GeminiService("test-key", "test-model") {
+			return new GeminiService("test-key", "test-model", 30000) {
 				@Override
 				public AnalysisResponse analyze(String cvText, String jobDescription) {
 					return new AnalysisResponse(0, List.of(), List.of(), List.of(), List.of());

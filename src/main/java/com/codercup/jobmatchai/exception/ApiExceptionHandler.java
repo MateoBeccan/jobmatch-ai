@@ -34,6 +34,13 @@ public class ApiExceptionHandler {
 				.body(new ApiErrorResponse(exception.getMessage()));
 	}
 
+	@ExceptionHandler(AiServiceTimeoutException.class)
+	public ResponseEntity<ApiErrorResponse> handleAiServiceTimeout(AiServiceTimeoutException exception) {
+		return ResponseEntity
+				.status(HttpStatus.GATEWAY_TIMEOUT)
+				.body(new ApiErrorResponse(exception.getMessage()));
+	}
+
 	@ExceptionHandler(InvalidAiResponseException.class)
 	public ResponseEntity<ApiErrorResponse> handleInvalidAiResponse(InvalidAiResponseException exception) {
 		return ResponseEntity
