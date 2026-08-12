@@ -12,6 +12,7 @@ import org.springframework.web.multipart.MultipartFile;
 @Service
 public class PdfService {
 
+	private static final long MAX_CV_FILE_SIZE_BYTES = 5L * 1024L * 1024L;
 	private static final String PDF_CONTENT_TYPE = "application/pdf";
 
 	public String extractText(MultipartFile file) {
@@ -39,6 +40,10 @@ public class PdfService {
 	private void validatePdfFile(MultipartFile file) {
 		if (file == null || file.isEmpty()) {
 			throw new InvalidAnalysisRequestException("El archivo del CV no puede estar vacio.");
+		}
+
+		if (file.getSize() > MAX_CV_FILE_SIZE_BYTES) {
+			throw new InvalidAnalysisRequestException("El archivo del CV no puede superar los 5 MB.");
 		}
 
 		String contentType = file.getContentType();

@@ -12,6 +12,7 @@ import org.springframework.web.multipart.MultipartFile;
 public class AnalysisService {
 
 	private static final long MAX_JOB_IMAGE_SIZE_BYTES = 5L * 1024L * 1024L;
+	private static final int MAX_JOB_DESCRIPTION_LENGTH = 15000;
 	private static final Map<String, Set<String>> ALLOWED_JOB_IMAGE_EXTENSIONS_BY_CONTENT_TYPE = Map.of(
 			"image/png", Set.of(".png"),
 			"image/jpeg", Set.of(".jpg", ".jpeg"),
@@ -57,6 +58,10 @@ public class AnalysisService {
 
 		if (hasJobDescription && hasJobImage) {
 			throw new InvalidAnalysisRequestException("Proporciona la oferta laboral como texto o imagen, no ambas.");
+		}
+
+		if (hasJobDescription && jobDescription.length() > MAX_JOB_DESCRIPTION_LENGTH) {
+			throw new InvalidAnalysisRequestException("La descripcion de la oferta no puede superar los 15000 caracteres.");
 		}
 
 		if (hasJobImage) {

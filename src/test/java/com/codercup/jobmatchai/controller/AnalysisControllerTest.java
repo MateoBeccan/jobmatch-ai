@@ -43,6 +43,7 @@ class AnalysisControllerTest {
 
 	private static boolean simulateGeminiUnavailable;
 	private static boolean simulateImageGeminiUnavailable;
+	private static boolean simulateUnexpectedError;
 
 	@Autowired
 	private MockMvc mockMvc;
@@ -58,6 +59,7 @@ class AnalysisControllerTest {
 	void resetGeminiFake() {
 		simulateGeminiUnavailable = false;
 		simulateImageGeminiUnavailable = false;
+		simulateUnexpectedError = false;
 	}
 
 	@Test
@@ -107,6 +109,52 @@ class AnalysisControllerTest {
 						.file(jobDescription))
 				.andExpect(status().isBadRequest())
 				.andExpect(jsonPath("$.message").value("El archivo del CV no puede estar vacio."));
+	}
+
+	@Test
+	void analyzeReturnsBadRequestForCvFileLargerThanFiveMb() throws Exception {
+		MockMultipartFile cvFile = new MockMultipartFile(
+				"cvFile",
+				"cv.pdf",
+				"application/pdf",
+				new byte[(5 * 1024 * 1024) + 1]
+		);
+		MockMultipartFile jobDescription = new MockMultipartFile(
+				"jobDescription",
+				"",
+				"text/plain",
+				"Java developer role".getBytes()
+		);
+
+		mockMvc.perform(multipart("/api/analyze")
+						.file(cvFile)
+						.file(jobDescription))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.message").value("El archivo del CV no puede superar los 5 MB."));
+	}
+
+	@Test
+	void analyzeReturnsBadRequestForJobDescriptionLongerThanLimit() throws Exception {
+		MockMultipartFile cvFile = new MockMultipartFile(
+				"cvFile",
+				"cv.pdf",
+				"application/pdf",
+				"fake pdf content".getBytes()
+		);
+		MockMultipartFile jobDescription = new MockMultipartFile(
+				"jobDescription",
+				"",
+				"text/plain",
+				"a".repeat(15001).getBytes()
+		);
+
+		mockMvc.perform(multipart("/api/analyze")
+						.file(cvFile)
+						.file(jobDescription))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.message").value(
+						"La descripcion de la oferta no puede superar los 15000 caracteres."
+				));
 	}
 
 	@Test
@@ -222,6 +270,32 @@ class AnalysisControllerTest {
 				.andExpect(jsonPath("$.message").value(
 						"El servicio de inteligencia artificial no esta disponible temporalmente."
 				));
+	}
+
+	@Test
+	void analyzeReturnsInternalServerErrorForUnexpectedError() throws Exception {
+		simulateUnexpectedError = true;
+		MockMultipartFile cvFile = new MockMultipartFile(
+				"cvFile",
+				"cv.pdf",
+				"application/pdf",
+				createPdfWithText("Java developer with Spring Boot experience")
+		);
+		MockMultipartFile jobDescription = new MockMultipartFile(
+				"jobDescription",
+				"",
+				"text/plain",
+				"Java developer role".getBytes()
+		);
+
+		mockMvc.perform(multipart("/api/analyze")
+						.file(cvFile)
+						.file(jobDescription))
+				.andExpect(status().isInternalServerError())
+				.andExpect(jsonPath("$.message").value("Ocurrio un error interno al procesar la solicitud."))
+				.andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.not(
+						org.hamcrest.Matchers.containsString("sensitive internal detail")
+				)));
 	}
 
 	@Test
@@ -449,6 +523,10 @@ class AnalysisControllerTest {
 			return new GeminiService("test-key", "test-model") {
 				@Override
 				public AnalysisResponse analyze(String cvText, String jobDescription) {
+					if (simulateUnexpectedError) {
+						throw new IllegalStateException("sensitive internal detail");
+					}
+
 					if (simulateGeminiUnavailable) {
 						throw new AiServiceUnavailableException(
 								"El servicio de inteligencia artificial no esta disponible temporalmente.",
