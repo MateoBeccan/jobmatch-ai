@@ -15,6 +15,27 @@ public class ApiExceptionHandler {
 				.body(new ApiErrorResponse(exception.getMessage()));
 	}
 
+	@ExceptionHandler(AnalysisConfigurationException.class)
+	public ResponseEntity<ApiErrorResponse> handleAnalysisConfiguration(AnalysisConfigurationException exception) {
+		return ResponseEntity
+				.status(HttpStatus.INTERNAL_SERVER_ERROR)
+				.body(new ApiErrorResponse(exception.getMessage()));
+	}
+
+	@ExceptionHandler(AiServiceUnavailableException.class)
+	public ResponseEntity<ApiErrorResponse> handleAiServiceUnavailable(AiServiceUnavailableException exception) {
+		return ResponseEntity
+				.status(HttpStatus.SERVICE_UNAVAILABLE)
+				.body(new ApiErrorResponse(exception.getMessage()));
+	}
+
+	@ExceptionHandler(InvalidAiResponseException.class)
+	public ResponseEntity<ApiErrorResponse> handleInvalidAiResponse(InvalidAiResponseException exception) {
+		return ResponseEntity
+				.status(HttpStatus.BAD_GATEWAY)
+				.body(new ApiErrorResponse(exception.getMessage()));
+	}
+
 	public record ApiErrorResponse(String message) {
 	}
 }

@@ -1,6 +1,5 @@
 package com.codercup.jobmatchai.controller;
 
-import static org.hamcrest.Matchers.empty;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -10,23 +9,38 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.codercup.jobmatchai.dto.AnalysisResponse;
+import com.codercup.jobmatchai.exception.AiServiceUnavailableException;
 import com.codercup.jobmatchai.exception.ApiExceptionHandler;
+import com.codercup.jobmatchai.exception.InvalidAiResponseException;
 import com.codercup.jobmatchai.service.AnalysisService;
+import com.codercup.jobmatchai.service.GeminiService;
 import com.codercup.jobmatchai.service.PdfService;
 
 @WebMvcTest(AnalysisController.class)
-@Import({AnalysisService.class, PdfService.class, ApiExceptionHandler.class})
+@Import({
+		AnalysisService.class,
+		PdfService.class,
+		ApiExceptionHandler.class,
+		AnalysisControllerTest.TestGeminiConfiguration.class
+})
 class AnalysisControllerTest {
+
+	private static boolean simulateGeminiUnavailable;
 
 	@Autowired
 	private MockMvc mockMvc;
@@ -36,6 +50,11 @@ class AnalysisControllerTest {
 		Path fontCacheDirectory = Path.of("target", "pdfbox-font-cache");
 		Files.createDirectories(fontCacheDirectory);
 		System.setProperty("pdfbox.fontcache", fontCacheDirectory.toAbsolutePath().toString());
+	}
+
+	@BeforeEach
+	void resetGeminiFake() {
+		simulateGeminiUnavailable = false;
 	}
 
 	@Test
@@ -57,11 +76,12 @@ class AnalysisControllerTest {
 						.file(cvFile)
 						.file(jobDescription))
 				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.matchPercentage").value(0))
-				.andExpect(jsonPath("$.matchingSkills", empty()))
-				.andExpect(jsonPath("$.missingSkills", empty()))
-				.andExpect(jsonPath("$.recommendations", empty()))
-				.andExpect(jsonPath("$.interviewQuestions", empty()));
+				.andExpect(jsonPath("$.matchPercentage").value(80))
+				.andExpect(jsonPath("$.matchingSkills[0]").value("Java"))
+				.andExpect(jsonPath("$.matchingSkills[1]").value("Spring Boot"))
+				.andExpect(jsonPath("$.missingSkills[0]").value("Docker"))
+				.andExpect(jsonPath("$.recommendations[0]").value("Aprender fundamentos de Docker"))
+				.andExpect(jsonPath("$.interviewQuestions[0]").value("Como crearias una API REST?"));
 	}
 
 	@Test
@@ -176,6 +196,31 @@ class AnalysisControllerTest {
 				.andExpect(jsonPath("$.message").value("No se pudo leer el archivo PDF."));
 	}
 
+	@Test
+	void analyzeReturnsServiceUnavailableWhenGeminiFails() throws Exception {
+		simulateGeminiUnavailable = true;
+		MockMultipartFile cvFile = new MockMultipartFile(
+				"cvFile",
+				"cv.pdf",
+				"application/pdf",
+				createPdfWithText("Java developer with Spring Boot experience")
+		);
+		MockMultipartFile jobDescription = new MockMultipartFile(
+				"jobDescription",
+				"",
+				"text/plain",
+				"Java developer role".getBytes()
+		);
+
+		mockMvc.perform(multipart("/api/analyze")
+						.file(cvFile)
+						.file(jobDescription))
+				.andExpect(status().isServiceUnavailable())
+				.andExpect(jsonPath("$.message").value(
+						"El servicio de inteligencia artificial no esta disponible temporalmente."
+				));
+	}
+
 	private byte[] createPdfWithText(String text) {
 		String content = "BT /F1 12 Tf 50 700 Td (" + escapePdfText(text) + ") Tj ET\n";
 		String[] objects = {
@@ -228,6 +273,37 @@ class AnalysisControllerTest {
 			document.addPage(new PDPage());
 			document.save(outputStream);
 			return outputStream.toByteArray();
+		}
+	}
+
+	@TestConfiguration
+	static class TestGeminiConfiguration {
+
+		@Bean
+		GeminiService geminiService() {
+			return new GeminiService("test-key", "test-model") {
+				@Override
+				public AnalysisResponse analyze(String cvText, String jobDescription) {
+					if (simulateGeminiUnavailable) {
+						throw new AiServiceUnavailableException(
+								"El servicio de inteligencia artificial no esta disponible temporalmente.",
+								new RuntimeException("Simulated Gemini error")
+						);
+					}
+
+					if (cvText == null || !cvText.contains("Spring Boot")) {
+						throw new InvalidAiResponseException("No se pudo interpretar la respuesta del servicio de analisis.");
+					}
+
+					return new AnalysisResponse(
+							80,
+							List.of("Java", "Spring Boot"),
+							List.of("Docker"),
+							List.of("Aprender fundamentos de Docker"),
+							List.of("Como crearias una API REST?")
+					);
+				}
+			};
 		}
 	}
 }

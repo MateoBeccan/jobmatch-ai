@@ -2,7 +2,6 @@ package com.codercup.jobmatchai.service;
 
 import com.codercup.jobmatchai.dto.AnalysisResponse;
 import com.codercup.jobmatchai.exception.InvalidAnalysisRequestException;
-import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -10,22 +9,18 @@ import org.springframework.web.multipart.MultipartFile;
 public class AnalysisService {
 
 	private final PdfService pdfService;
+	private final GeminiService geminiService;
 
-	public AnalysisService(PdfService pdfService) {
+	public AnalysisService(PdfService pdfService, GeminiService geminiService) {
 		this.pdfService = pdfService;
+		this.geminiService = geminiService;
 	}
 
 	public AnalysisResponse analyze(MultipartFile cvFile, String jobDescription) {
 		validateRequest(cvFile, jobDescription);
 		String cvText = pdfService.extractText(cvFile);
 
-		return new AnalysisResponse(
-				0,
-				List.of(),
-				List.of(),
-				List.of(),
-				List.of()
-		);
+		return geminiService.analyze(cvText, jobDescription);
 	}
 
 	private void validateRequest(MultipartFile cvFile, String jobDescription) {
