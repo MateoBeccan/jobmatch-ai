@@ -22,6 +22,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.web.multipart.MultipartFile;
 
 import com.codercup.jobmatchai.dto.AnalysisResponse;
 import com.codercup.jobmatchai.exception.AiServiceUnavailableException;
@@ -41,6 +42,7 @@ import com.codercup.jobmatchai.service.PdfService;
 class AnalysisControllerTest {
 
 	private static boolean simulateGeminiUnavailable;
+	private static boolean simulateImageGeminiUnavailable;
 
 	@Autowired
 	private MockMvc mockMvc;
@@ -55,6 +57,7 @@ class AnalysisControllerTest {
 	@BeforeEach
 	void resetGeminiFake() {
 		simulateGeminiUnavailable = false;
+		simulateImageGeminiUnavailable = false;
 	}
 
 	@Test
@@ -122,10 +125,10 @@ class AnalysisControllerTest {
 		);
 
 		mockMvc.perform(multipart("/api/analyze")
-						.file(cvFile)
+				.file(cvFile)
 						.file(jobDescription))
 				.andExpect(status().isBadRequest())
-				.andExpect(jsonPath("$.message").value("La descripcion de la oferta laboral no puede estar vacia."));
+				.andExpect(jsonPath("$.message").value("Debes proporcionar la oferta laboral como texto o imagen."));
 	}
 
 	@Test
@@ -221,6 +224,168 @@ class AnalysisControllerTest {
 				));
 	}
 
+	@Test
+	void analyzeReturnsOkForValidImageRequest() throws Exception {
+		MockMultipartFile cvFile = new MockMultipartFile(
+				"cvFile",
+				"cv.pdf",
+				"application/pdf",
+				createPdfWithText("Java developer with Spring Boot experience")
+		);
+		MockMultipartFile jobImage = new MockMultipartFile(
+				"jobImage",
+				"job.png",
+				"image/png",
+				new byte[] {1, 2, 3}
+		);
+
+		mockMvc.perform(multipart("/api/analyze")
+						.file(cvFile)
+						.file(jobImage))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.matchPercentage").value(83))
+				.andExpect(jsonPath("$.matchingSkills[0]").value("Java"))
+				.andExpect(jsonPath("$.matchingSkills[1]").value("Spring Boot"))
+				.andExpect(jsonPath("$.missingSkills[0]").value("Docker"))
+				.andExpect(jsonPath("$.recommendations[0]").value("Destacar proyectos realizados con Spring Boot"))
+				.andExpect(jsonPath("$.interviewQuestions[0]").value("Como disenarias una API REST con Spring Boot?"));
+	}
+
+	@Test
+	void analyzeReturnsBadRequestWhenOfferIsMissing() throws Exception {
+		MockMultipartFile cvFile = new MockMultipartFile(
+				"cvFile",
+				"cv.pdf",
+				"application/pdf",
+				createPdfWithText("Java developer with Spring Boot experience")
+		);
+
+		mockMvc.perform(multipart("/api/analyze")
+						.file(cvFile))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.message").value("Debes proporcionar la oferta laboral como texto o imagen."));
+	}
+
+	@Test
+	void analyzeReturnsBadRequestWhenTextAndImageAreProvided() throws Exception {
+		MockMultipartFile cvFile = new MockMultipartFile(
+				"cvFile",
+				"cv.pdf",
+				"application/pdf",
+				createPdfWithText("Java developer with Spring Boot experience")
+		);
+		MockMultipartFile jobDescription = new MockMultipartFile(
+				"jobDescription",
+				"",
+				"text/plain",
+				"Java developer role".getBytes()
+		);
+		MockMultipartFile jobImage = new MockMultipartFile(
+				"jobImage",
+				"job.png",
+				"image/png",
+				new byte[] {1, 2, 3}
+		);
+
+		mockMvc.perform(multipart("/api/analyze")
+						.file(cvFile)
+						.file(jobDescription)
+						.file(jobImage))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.message").value("Proporciona la oferta laboral como texto o imagen, no ambas."));
+	}
+
+	@Test
+	void analyzeReturnsBadRequestForEmptyJobImage() throws Exception {
+		MockMultipartFile cvFile = new MockMultipartFile(
+				"cvFile",
+				"cv.pdf",
+				"application/pdf",
+				createPdfWithText("Java developer with Spring Boot experience")
+		);
+		MockMultipartFile jobImage = new MockMultipartFile(
+				"jobImage",
+				"job.png",
+				"image/png",
+				new byte[0]
+		);
+
+		mockMvc.perform(multipart("/api/analyze")
+						.file(cvFile)
+						.file(jobImage))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.message").value("La imagen de la oferta esta vacia."));
+	}
+
+	@Test
+	void analyzeReturnsBadRequestForUnsupportedJobImageFormat() throws Exception {
+		MockMultipartFile cvFile = new MockMultipartFile(
+				"cvFile",
+				"cv.pdf",
+				"application/pdf",
+				createPdfWithText("Java developer with Spring Boot experience")
+		);
+		MockMultipartFile jobImage = new MockMultipartFile(
+				"jobImage",
+				"job.txt",
+				"text/plain",
+				"not an image".getBytes()
+		);
+
+		mockMvc.perform(multipart("/api/analyze")
+						.file(cvFile)
+						.file(jobImage))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.message").value("La imagen de la oferta debe ser PNG, JPEG o WEBP."));
+	}
+
+	@Test
+	void analyzeReturnsBadRequestForJobImageLargerThanFiveMb() throws Exception {
+		MockMultipartFile cvFile = new MockMultipartFile(
+				"cvFile",
+				"cv.pdf",
+				"application/pdf",
+				createPdfWithText("Java developer with Spring Boot experience")
+		);
+		MockMultipartFile jobImage = new MockMultipartFile(
+				"jobImage",
+				"job.png",
+				"image/png",
+				new byte[(5 * 1024 * 1024) + 1]
+		);
+
+		mockMvc.perform(multipart("/api/analyze")
+						.file(cvFile)
+						.file(jobImage))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.message").value("La imagen de la oferta no puede superar los 5 MB."));
+	}
+
+	@Test
+	void analyzeReturnsServiceUnavailableWhenGeminiFailsForImageRequest() throws Exception {
+		simulateImageGeminiUnavailable = true;
+		MockMultipartFile cvFile = new MockMultipartFile(
+				"cvFile",
+				"cv.pdf",
+				"application/pdf",
+				createPdfWithText("Java developer with Spring Boot experience")
+		);
+		MockMultipartFile jobImage = new MockMultipartFile(
+				"jobImage",
+				"job.png",
+				"image/png",
+				new byte[] {1, 2, 3}
+		);
+
+		mockMvc.perform(multipart("/api/analyze")
+						.file(cvFile)
+						.file(jobImage))
+				.andExpect(status().isServiceUnavailable())
+				.andExpect(jsonPath("$.message").value(
+						"El servicio de inteligencia artificial no esta disponible temporalmente."
+				));
+	}
+
 	private byte[] createPdfWithText(String text) {
 		String content = "BT /F1 12 Tf 50 700 Td (" + escapePdfText(text) + ") Tj ET\n";
 		String[] objects = {
@@ -301,6 +466,28 @@ class AnalysisControllerTest {
 							List.of("Docker"),
 							List.of("Aprender fundamentos de Docker"),
 							List.of("Como crearias una API REST?")
+					);
+				}
+
+				@Override
+				public AnalysisResponse analyze(String cvText, MultipartFile jobImage) {
+					if (simulateImageGeminiUnavailable) {
+						throw new AiServiceUnavailableException(
+								"El servicio de inteligencia artificial no esta disponible temporalmente.",
+								new RuntimeException("Simulated Gemini image error")
+						);
+					}
+
+					if (cvText == null || !cvText.contains("Spring Boot") || jobImage == null || jobImage.isEmpty()) {
+						throw new InvalidAiResponseException("No se pudo interpretar la imagen de la oferta laboral.");
+					}
+
+					return new AnalysisResponse(
+							83,
+							List.of("Java", "Spring Boot"),
+							List.of("Docker"),
+							List.of("Destacar proyectos realizados con Spring Boot"),
+							List.of("Como disenarias una API REST con Spring Boot?")
 					);
 				}
 			};

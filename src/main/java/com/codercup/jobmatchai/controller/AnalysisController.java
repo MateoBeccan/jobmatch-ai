@@ -20,8 +20,9 @@ public class AnalysisController {
 	@PostMapping(path = "/api/analyze", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
 	public AnalysisResponse analyze(
 			@RequestPart(value = "cvFile", required = false) MultipartFile cvFile,
-			@RequestPart(value = "jobDescription", required = false) String jobDescription
+			@RequestPart(value = "jobDescription", required = false) String jobDescription,
+			@RequestPart(value = "jobImage", required = false) MultipartFile jobImage
 	) {
-		return analysisService.analyze(cvFile, jobDescription);
+		return analysisService.analyze(cvFile, jobDescription, jobImage);
 	}
 }
