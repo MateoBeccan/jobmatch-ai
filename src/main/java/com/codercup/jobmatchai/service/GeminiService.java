@@ -72,6 +72,18 @@ public class GeminiService {
 				.type(Type.Known.ARRAY)
 				.items(Schema.builder().type(Type.Known.STRING).build())
 				.build();
+		Schema recommendationsSchema = Schema.builder()
+				.type(Type.Known.ARRAY)
+				.items(Schema.builder().type(Type.Known.STRING).build())
+				.minItems(2L)
+				.maxItems(4L)
+				.build();
+		Schema interviewQuestionsSchema = Schema.builder()
+				.type(Type.Known.ARRAY)
+				.items(Schema.builder().type(Type.Known.STRING).build())
+				.minItems(3L)
+				.maxItems(5L)
+				.build();
 
 		Map<String, Schema> properties = new LinkedHashMap<>();
 		properties.put("matchPercentage", Schema.builder()
@@ -81,8 +93,8 @@ public class GeminiService {
 				.build());
 		properties.put("matchingSkills", stringArraySchema);
 		properties.put("missingSkills", stringArraySchema);
-		properties.put("recommendations", stringArraySchema);
-		properties.put("interviewQuestions", stringArraySchema);
+		properties.put("recommendations", recommendationsSchema);
+		properties.put("interviewQuestions", interviewQuestionsSchema);
 
 		return Schema.builder()
 				.type(Type.Known.OBJECT)
@@ -109,19 +121,75 @@ public class GeminiService {
 				Actua como un asistente de analisis profesional de postulaciones laborales.
 				Compara unicamente la informacion proporcionada.
 
+				Antes de responder, analiza internamente la oferta y separa:
+				- requisitos obligatorios;
+				- requisitos deseables;
+				- experiencia y seniority requerido;
+				- habilidades tecnicas principales;
+				- conocimientos complementarios.
+				No devuelvas estas categorias en el JSON; usalas solo para mejorar la evaluacion.
+
+				Criterio orientativo para matchPercentage:
+				- Requisitos obligatorios y habilidades tecnicas principales: 60%%.
+				- Experiencia y seniority requerido: 20%%.
+				- Requisitos deseables: 10%%.
+				- Habilidades complementarias relevantes: 10%%.
+				No apliques una formula exacta si la oferta no permite hacerlo, pero respeta esta ponderacion como guia.
+				Si el candidato cumple tecnologias obligatorias como Java, Spring Boot, SQL o REST APIs, eso debe pesar
+				mucho mas que no conocer una herramienta deseable. Si la oferta exige seniority o anos de experiencia
+				y el CV no demuestra ese nivel, reflejalo de forma significativa en el porcentaje.
+
+				Interpretacion aproximada de matchPercentage:
+				- 80 a 100: compatibilidad alta.
+				- 60 a 79: compatibilidad buena.
+				- 40 a 59: compatibilidad media.
+				- 20 a 39: compatibilidad baja.
+				- 0 a 19: compatibilidad muy baja.
+				No fuerces artificialmente el resultado dentro de una banda.
+
 				Instrucciones obligatorias:
 				- No inventes experiencia, conocimientos, titulos ni habilidades.
 				- No asumas que el candidato conoce una tecnologia si no aparece en el CV.
 				- Diferencia coincidencias y requisitos faltantes.
 				- Evalua habilidades tecnicas y requisitos relevantes.
-				- Da recomendaciones concretas y breves.
-				- Crea posibles preguntas de entrevista relacionadas con la oferta.
 				- El porcentaje debe ser orientativo y estar entre 0 y 100.
 				- No rechaces automaticamente a una persona por requisitos faltantes.
 				- No realices inferencias sobre edad, genero, raza, religion, nacionalidad, discapacidad,
 				  orientacion sexual u otros atributos sensibles.
 				- Analiza exclusivamente compatibilidad profesional.
 				- Responde solo con JSON valido que cumpla el schema solicitado.
+
+				matchingSkills:
+				- Inclui habilidades o requisitos concretos presentes tanto en el CV como en la oferta.
+				- Priorizá tecnologias y practicas especificas como Java, Spring Boot, SQL, MySQL, REST APIs, Git o Scrum.
+				- Evita elementos demasiado genericos como "Tecnologia", "Informatica" o "Desarrollo de Software",
+				  salvo que sean realmente relevantes para la oferta.
+				- No inventes equivalencias fuertes: Java no implica Node.js, y MySQL no implica PostgreSQL si
+				  PostgreSQL es un requisito especifico.
+
+				missingSkills:
+				- Inclui solo requisitos relevantes que esten en la oferta y no esten demostrados por el CV.
+				- No agregues tecnologias que la oferta no menciona.
+				- Si la oferta exige experiencia temporal, conserva esa informacion cuando sea relevante.
+				  Ejemplo: "Experiencia requerida: 4 anos; el CV no demuestra ese nivel de experiencia."
+				- Mantené textos breves.
+
+				Experiencia vs conocimiento:
+				- Una tecnologia mencionada en skills, estudios, proyectos o experiencia laboral puede contar como conocimiento.
+				- Si la oferta exige experiencia profesional temporal con una tecnologia y el CV solo muestra un proyecto
+				  academico, no consideres cumplido completamente ese requisito; puede ser una coincidencia parcial.
+
+				recommendations:
+				- Genera entre 2 y 4 recomendaciones concretas y breves.
+				- Relacionalas directamente con esta postulacion.
+				- Puede incluir que destacar del CV, que reforzar, que requisito preparar para entrevista o si el
+				  seniority de la vacante esta claramente por encima del perfil.
+				- No uses frases desmotivadoras ni recomiendes automaticamente no postularse.
+
+				interviewQuestions:
+				- Genera entre 3 y 5 preguntas realistas para una entrevista de este puesto.
+				- Prioriza tecnologias coincidentes importantes, tecnologias faltantes importantes, experiencia solicitada
+				  y responsabilidades especificas de la oferta.
 
 				CV DEL CANDIDATO:
 				---
