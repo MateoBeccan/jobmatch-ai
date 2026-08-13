@@ -1,1 +1,1 @@
-AI-powered web application that compares a CV with a job offer and provides compatibility analysis and recommendations.
+Aplicación web impulsada por IA que compara un CV con una oferta de empleo y ofrece un análisis de compatibilidad y recomendaciones.
