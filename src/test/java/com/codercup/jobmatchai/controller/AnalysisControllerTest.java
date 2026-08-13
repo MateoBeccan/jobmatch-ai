@@ -520,7 +520,7 @@ class AnalysisControllerTest {
 
 		@Bean
 		GeminiService geminiService() {
-			return new GeminiService("test-key", "test-model", 30000) {
+			return new GeminiService("test-key", "test-model", 30000, 2, 500) {
 				@Override
 				public AnalysisResponse analyze(String cvText, String jobDescription) {
 					if (simulateUnexpectedError) {

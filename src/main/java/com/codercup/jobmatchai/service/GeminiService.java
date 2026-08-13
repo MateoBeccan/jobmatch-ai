@@ -14,12 +14,14 @@ import com.google.genai.types.Content;
 import com.google.genai.types.GenerateContentConfig;
 import com.google.genai.types.GenerateContentResponse;
 import com.google.genai.types.HttpOptions;
+import com.google.genai.types.HttpRetryOptions;
 import com.google.genai.types.Part;
 import com.google.genai.types.Schema;
 import com.google.genai.types.Type;
 import java.io.IOException;
 import java.io.InterruptedIOException;
 import java.net.SocketTimeoutException;
+import java.util.Set;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -30,15 +32,21 @@ import org.springframework.web.multipart.MultipartFile;
 @Service
 public class GeminiService {
 
+	private static final Set<Integer> RETRYABLE_HTTP_STATUS_CODES = Set.of(429, 502, 503);
+
 	private final ObjectMapper objectMapper;
 	private final String apiKey;
 	private final String model;
 	private final int timeoutMs;
+	private final int retryAttempts;
+	private final int retryDelayMs;
 
 	public GeminiService(
 			@Value("${gemini.api.key:}") String apiKey,
 			@Value("${gemini.model}") String model,
-			@Value("${gemini.timeout-ms}") int timeoutMs
+			@Value("${gemini.timeout-ms}") int timeoutMs,
+			@Value("${gemini.retry-attempts}") int retryAttempts,
+			@Value("${gemini.retry-delay-ms}") int retryDelayMs
 	) {
 		this.objectMapper = new ObjectMapper();
 		this.apiKey = apiKey;
@@ -46,7 +54,15 @@ public class GeminiService {
 		if (timeoutMs <= 0) {
 			throw new AnalysisConfigurationException("El timeout de Gemini debe ser mayor a 0 ms.");
 		}
+		if (retryAttempts < 1 || retryAttempts > 2) {
+			throw new AnalysisConfigurationException("Los intentos de Gemini deben ser 1 o 2.");
+		}
+		if (retryDelayMs <= 0) {
+			throw new AnalysisConfigurationException("El delay de retry de Gemini debe ser mayor a 0 ms.");
+		}
 		this.timeoutMs = timeoutMs;
+		this.retryAttempts = retryAttempts;
+		this.retryDelayMs = retryDelayMs;
 	}
 
 	public AnalysisResponse analyze(String cvText, String jobDescription) {
@@ -81,34 +97,71 @@ public class GeminiService {
 	}
 
 	private String generateContent(String prompt) {
-		try (Client client = buildClient()) {
+		return generateContentWithRetry(client -> {
 			GenerateContentResponse response = client.models.generateContent(model, prompt, buildConfig());
 			return response.text();
+		});
+	}
+
+	private String generateContent(Content content) {
+		return generateContentWithRetry(client -> {
+			GenerateContentResponse response = client.models.generateContent(model, content, buildConfig());
+			return response.text();
+		});
+	}
+
+	private String generateContentWithRetry(GeminiContentCall contentCall) {
+		ApiException lastApiException = null;
+		HttpRetryOptions retryOptions = buildRetryOptions();
+		int attempts = retryOptions.attempts().orElse(1);
+		for (int attempt = 1; attempt <= attempts; attempt++) {
+			try {
+				return generateContentOnce(contentCall);
+			}
+			catch (ApiException exception) {
+				lastApiException = exception;
+				if (!shouldRetry(exception, retryOptions) || attempt == attempts) {
+					break;
+				}
+				pauseBeforeRetry(retryOptions);
+			}
+			catch (GenAiIOException exception) {
+				throw mapGeminiIOException(exception);
+			}
 		}
-		catch (ApiException exception) {
-			throw new AiServiceUnavailableException(
-					"El servicio de inteligencia artificial no esta disponible temporalmente.",
-					exception
-			);
+
+		throw new AiServiceUnavailableException(
+				"El servicio de inteligencia artificial no esta disponible temporalmente.",
+				lastApiException
+		);
+	}
+
+	String generateContentOnce(GeminiContentCall contentCall) {
+		try (Client client = buildClient()) {
+			return contentCall.execute(client);
 		}
 		catch (GenAiIOException exception) {
 			throw mapGeminiIOException(exception);
 		}
 	}
 
-	private String generateContent(Content content) {
-		try (Client client = buildClient()) {
-			GenerateContentResponse response = client.models.generateContent(model, content, buildConfig());
-			return response.text();
+	private boolean shouldRetry(ApiException exception, HttpRetryOptions retryOptions) {
+		List<Integer> retryableStatusCodes = retryOptions.httpStatusCodes()
+				.orElse(List.copyOf(RETRYABLE_HTTP_STATUS_CODES));
+		return retryableStatusCodes.contains(exception.code());
+	}
+
+	void pauseBeforeRetry(HttpRetryOptions retryOptions) {
+		try {
+			long delayMs = (long) (retryOptions.initialDelay().orElse(0.5) * 1000);
+			Thread.sleep(delayMs);
 		}
-		catch (ApiException exception) {
+		catch (InterruptedException exception) {
+			Thread.currentThread().interrupt();
 			throw new AiServiceUnavailableException(
 					"El servicio de inteligencia artificial no esta disponible temporalmente.",
 					exception
 			);
-		}
-		catch (GenAiIOException exception) {
-			throw mapGeminiIOException(exception);
 		}
 	}
 
@@ -122,6 +175,18 @@ public class GeminiService {
 	private HttpOptions buildHttpOptions() {
 		return HttpOptions.builder()
 				.timeout(timeoutMs)
+				.build();
+	}
+
+	private HttpRetryOptions buildRetryOptions() {
+		double delaySeconds = retryDelayMs / 1000.0;
+		return HttpRetryOptions.builder()
+				.attempts(retryAttempts)
+				.httpStatusCodes(429, 502, 503)
+				.initialDelay(delaySeconds)
+				.maxDelay(delaySeconds)
+				.expBase(1.0)
+				.jitter(0.0)
 				.build();
 	}
 
@@ -474,5 +539,11 @@ public class GeminiService {
 		}
 
 		return List.copyOf(values);
+	}
+
+	@FunctionalInterface
+	interface GeminiContentCall {
+
+		String execute(Client client);
 	}
 }
