@@ -10,10 +10,13 @@ import java.net.SocketTimeoutException;
 import java.util.ArrayDeque;
 import java.util.List;
 import java.util.Queue;
-import com.codercup.jobmatchai.dto.AnalysisResponse;
+import com.codercup.jobmatchai.dto.internal.GeminiAnalysisResult;
 import com.codercup.jobmatchai.exception.AiServiceTimeoutException;
 import com.codercup.jobmatchai.exception.AnalysisConfigurationException;
 import com.codercup.jobmatchai.exception.AiServiceUnavailableException;
+import com.codercup.jobmatchai.exception.InvalidAiResponseException;
+import com.codercup.jobmatchai.scoring.RequirementCategory;
+import com.codercup.jobmatchai.scoring.RequirementStatus;
 import com.google.genai.errors.ApiException;
 import com.google.genai.errors.GenAiIOException;
 import com.google.genai.types.Content;
@@ -21,13 +24,14 @@ import com.google.genai.types.GenerateContentConfig;
 import com.google.genai.types.HttpOptions;
 import com.google.genai.types.HttpRetryOptions;
 import com.google.genai.types.Part;
+import com.google.genai.types.Schema;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockMultipartFile;
 
 class GeminiServiceTest {
 
 	@Test
-	void buildPromptHandlesLiteralPercentages() throws Exception {
+	void buildPromptDelegatesPercentageCalculationToJava() throws Exception {
 		GeminiService geminiService = new GeminiService("test-key", "test-model", 30000, 2, 500);
 		Method buildPrompt = GeminiService.class.getDeclaredMethod("buildPrompt", String.class, String.class);
 		buildPrompt.setAccessible(true);
@@ -37,11 +41,20 @@ class GeminiServiceTest {
 
 		String prompt = (String) buildPrompt.invoke(geminiService, "CV con Java", "Oferta con Spring Boot");
 		assertThat(prompt)
-				.contains("60%")
-				.contains("20%")
-				.contains("10%")
+				.contains("Java calculara el porcentaje final")
+				.contains("MANDATORY_TECHNICAL")
+				.contains("EXPERIENCE_SENIORITY")
+				.contains("DESIRABLE")
+				.contains("COMPLEMENTARY")
+				.contains("MATCH")
+				.contains("PARTIAL")
+				.contains("MISSING")
 				.contains("CV con Java")
-				.contains("Oferta con Spring Boot");
+				.contains("Oferta con Spring Boot")
+				.doesNotContain("matchPercentage")
+				.doesNotContain("60%")
+				.doesNotContain("20%")
+				.doesNotContain("10%");
 	}
 
 	@Test
@@ -98,15 +111,239 @@ class GeminiServiceTest {
 		assertThat(textPart.text()).isPresent();
 		assertThat(textPart.text().get())
 				.contains("La imagen adjunta contiene una oferta laboral")
-				.contains("60%")
-				.contains("20%")
-				.contains("10%")
-				.contains("CV con Java");
+				.contains("requirements")
+				.contains("MANDATORY_TECHNICAL")
+				.contains("CV con Java")
+				.doesNotContain("matchPercentage")
+				.doesNotContain("60%")
+				.doesNotContain("20%")
+				.doesNotContain("10%");
 		assertThat(imagePart.inlineData()).isPresent();
 		assertThat(imagePart.inlineData().get().mimeType()).contains("image/png");
 		assertThat(imagePart.inlineData().get().data()).contains(new byte[] {1, 2, 3});
 		assertThat(config.responseMimeType()).contains("application/json");
 		assertThat(config.responseSchema()).isPresent();
+		assertThat(config.seed()).contains(42);
+		assertThat(config.temperature()).isEmpty();
+		assertThat(config.topP()).isEmpty();
+		assertThat(config.topK()).isEmpty();
+	}
+
+	@Test
+	void buildConfigUsesFixedSeedWithoutSamplingParameters() throws Exception {
+		GeminiService geminiService = new GeminiService("test-key", "test-model", 30000, 2, 500);
+		GenerateContentConfig config = buildConfig(geminiService);
+
+		assertThat(config.responseMimeType()).contains("application/json");
+		assertThat(config.responseSchema()).isPresent();
+		assertThat(config.seed()).contains(42);
+		assertThat(config.temperature()).isEmpty();
+		assertThat(config.topP()).isEmpty();
+		assertThat(config.topK()).isEmpty();
+	}
+
+	@Test
+	void promptsIncludeStableRequirementExtractionRules() throws Exception {
+		GeminiService geminiService = new GeminiService("test-key", "test-model", 30000, 2, 500);
+		Method buildPrompt = GeminiService.class.getDeclaredMethod("buildPrompt", String.class, String.class);
+		Method buildImagePrompt = GeminiService.class.getDeclaredMethod("buildImagePrompt", String.class);
+		buildPrompt.setAccessible(true);
+		buildImagePrompt.setAccessible(true);
+
+		String textPrompt = (String) buildPrompt.invoke(geminiService, "CV con Java", "Java y Spring Boot");
+		String imagePrompt = (String) buildImagePrompt.invoke(geminiService, "CV con Java");
+
+		assertPromptIncludesStableRequirementExtractionRules(textPrompt);
+		assertPromptIncludesStableRequirementExtractionRules(imagePrompt);
+	}
+
+	@Test
+	void responseSchemaUsesRequirementsAndDoesNotExposeMatchPercentage() throws Exception {
+		GeminiService geminiService = new GeminiService("test-key", "test-model", 30000, 2, 500);
+		Schema schema = buildResponseSchema(geminiService);
+
+		assertThat(schema.properties()).isPresent();
+		assertThat(schema.properties().get()).containsKeys(
+				"requirements",
+				"matchingSkills",
+				"missingSkills",
+				"recommendations",
+				"interviewQuestions"
+		);
+		assertThat(schema.properties().get()).doesNotContainKey("matchPercentage");
+		assertThat(schema.required()).contains(List.of(
+				"requirements",
+				"matchingSkills",
+				"missingSkills",
+				"recommendations",
+				"interviewQuestions"
+		));
+
+		Schema requirementSchema = schema.properties().get().get("requirements").items().get();
+		assertThat(requirementSchema.required()).contains(List.of("name", "category", "status", "evidence"));
+		assertThat(requirementSchema.properties().get().get("category").enum_()).contains(List.of(
+				"MANDATORY_TECHNICAL",
+				"EXPERIENCE_SENIORITY",
+				"DESIRABLE",
+				"COMPLEMENTARY"
+		));
+		assertThat(requirementSchema.properties().get().get("status").enum_()).contains(List.of(
+				"MATCH",
+				"PARTIAL",
+				"MISSING"
+		));
+	}
+
+	@Test
+	void parseResponseAcceptsValidRequirementsAndNormalizesNullableLists() throws Exception {
+		GeminiService geminiService = new GeminiService("test-key", "test-model", 30000, 2, 500);
+
+		GeminiAnalysisResult result = parseResponse(geminiService, """
+				{
+				  "requirements": [
+				    {
+				      "name": "Java",
+				      "category": "MANDATORY_TECHNICAL",
+				      "status": "MATCH",
+				      "evidence": "Java aparece en skills y proyectos."
+				    }
+				  ],
+				  "matchingSkills": ["Java"],
+				  "missingSkills": null,
+				  "recommendations": null,
+				  "interviewQuestions": null
+				}
+				""");
+
+		assertThat(result.requirements()).hasSize(1);
+		assertThat(result.requirements().get(0).name()).isEqualTo("Java");
+		assertThat(result.requirements().get(0).category()).isEqualTo(RequirementCategory.MANDATORY_TECHNICAL);
+		assertThat(result.requirements().get(0).status()).isEqualTo(RequirementStatus.MATCH);
+		assertThat(result.matchingSkills()).containsExactly("Java");
+		assertThat(result.missingSkills()).isEmpty();
+		assertThat(result.recommendations()).isEmpty();
+		assertThat(result.interviewQuestions()).isEmpty();
+	}
+
+	@Test
+	void parseResponseRejectsInvalidJson() {
+		GeminiService geminiService = new GeminiService("test-key", "test-model", 30000, 2, 500);
+
+		assertThatThrownBy(() -> parseResponse(geminiService, "{not json"))
+				.isInstanceOf(InvalidAiResponseException.class)
+				.hasMessage("No se pudo interpretar la respuesta del servicio de analisis.");
+	}
+
+	@Test
+	void parseResponseRejectsUnknownCategory() {
+		GeminiService geminiService = new GeminiService("test-key", "test-model", 30000, 2, 500);
+
+		assertThatThrownBy(() -> parseResponse(geminiService, responseWithRequirement(
+				"Java",
+				"TECH",
+				"MATCH",
+				"Java aparece en el CV."
+		)))
+				.isInstanceOf(InvalidAiResponseException.class)
+				.hasMessage("No se pudo interpretar la respuesta del servicio de analisis.");
+	}
+
+	@Test
+	void parseResponseRejectsUnknownStatus() {
+		GeminiService geminiService = new GeminiService("test-key", "test-model", 30000, 2, 500);
+
+		assertThatThrownBy(() -> parseResponse(geminiService, responseWithRequirement(
+				"Java",
+				"MANDATORY_TECHNICAL",
+				"FULL_MATCH",
+				"Java aparece en el CV."
+		)))
+				.isInstanceOf(InvalidAiResponseException.class)
+				.hasMessage("No se pudo interpretar la respuesta del servicio de analisis.");
+	}
+
+	@Test
+	void parseResponseRejectsRequirementWithoutName() {
+		GeminiService geminiService = new GeminiService("test-key", "test-model", 30000, 2, 500);
+
+		assertThatThrownBy(() -> parseResponse(geminiService, """
+				{
+				  "requirements": [
+				    {
+				      "category": "MANDATORY_TECHNICAL",
+				      "status": "MATCH",
+				      "evidence": "Java aparece en el CV."
+				    }
+				  ],
+				  "matchingSkills": [],
+				  "missingSkills": [],
+				  "recommendations": [],
+				  "interviewQuestions": []
+				}
+				"""))
+				.isInstanceOf(InvalidAiResponseException.class)
+				.hasMessage("No se pudo interpretar la respuesta del servicio de analisis.");
+	}
+
+	@Test
+	void parseResponseRejectsRequirementWithoutCategory() {
+		GeminiService geminiService = new GeminiService("test-key", "test-model", 30000, 2, 500);
+
+		assertThatThrownBy(() -> parseResponse(geminiService, """
+				{
+				  "requirements": [
+				    {
+				      "name": "Java",
+				      "status": "MATCH",
+				      "evidence": "Java aparece en el CV."
+				    }
+				  ],
+				  "matchingSkills": [],
+				  "missingSkills": [],
+				  "recommendations": [],
+				  "interviewQuestions": []
+				}
+				"""))
+				.isInstanceOf(InvalidAiResponseException.class)
+				.hasMessage("No se pudo interpretar la respuesta del servicio de analisis.");
+	}
+
+	@Test
+	void parseResponseRejectsRequirementWithoutStatus() {
+		GeminiService geminiService = new GeminiService("test-key", "test-model", 30000, 2, 500);
+
+		assertThatThrownBy(() -> parseResponse(geminiService, """
+				{
+				  "requirements": [
+				    {
+				      "name": "Java",
+				      "category": "MANDATORY_TECHNICAL",
+				      "evidence": "Java aparece en el CV."
+				    }
+				  ],
+				  "matchingSkills": [],
+				  "missingSkills": [],
+				  "recommendations": [],
+				  "interviewQuestions": []
+				}
+				"""))
+				.isInstanceOf(InvalidAiResponseException.class)
+				.hasMessage("No se pudo interpretar la respuesta del servicio de analisis.");
+	}
+
+	@Test
+	void parseResponseAllowsBlankEvidence() throws Exception {
+		GeminiService geminiService = new GeminiService("test-key", "test-model", 30000, 2, 500);
+
+		GeminiAnalysisResult result = parseResponse(geminiService, responseWithRequirement(
+				"Java",
+				"MANDATORY_TECHNICAL",
+				"MATCH",
+				""
+		));
+
+		assertThat(result.requirements()).hasSize(1);
+		assertThat(result.requirements().get(0).evidence()).isEmpty();
 	}
 
 	@Test
@@ -254,10 +491,12 @@ class GeminiServiceTest {
 				validResponseJson()
 		);
 
-		AnalysisResponse response = geminiService.analyze("CV con Java", "Oferta con Java");
+		GeminiAnalysisResult response = geminiService.analyze("CV con Java", "Oferta con Java");
 
 		assertThat(geminiService.attempts()).isEqualTo(2);
-		assertThat(response.matchPercentage()).isEqualTo(72);
+		assertThat(response.requirements()).hasSize(1);
+		assertThat(response.requirements().get(0).category()).isEqualTo(RequirementCategory.MANDATORY_TECHNICAL);
+		assertThat(response.requirements().get(0).status()).isEqualTo(RequirementStatus.MATCH);
 		assertThat(response.matchingSkills()).containsExactly("Java");
 	}
 
@@ -333,16 +572,68 @@ class GeminiServiceTest {
 				.contains("anos de experiencia profesional");
 	}
 
+	private void assertPromptIncludesStableRequirementExtractionRules(String prompt) {
+		String normalizedPrompt = prompt.replaceAll("\\s+", " ");
+
+		assertThat(normalizedPrompt)
+				.contains("FASE A")
+				.contains("exclusivamente desde la oferta")
+				.contains("sin usar el CV")
+				.contains("FASE B")
+				.contains("PRIORIDAD 1")
+				.contains("EXPERIENCE_SENIORITY")
+				.contains("PRIORIDAD 2")
+				.contains("DESIRABLE")
+				.contains("PRIORIDAD 3")
+				.contains("MANDATORY_TECHNICAL")
+				.contains("PRIORIDAD 4")
+				.contains("COMPLEMENTARY")
+				.contains("clasificalo como MISSING")
+				.contains("No uses PARTIAL como resultado de incertidumbre")
+				.contains("\"Java o Kotlin\" debe ser un solo requirement")
+				.contains("\"Java y Spring Boot\" deben ser dos requirements independientes")
+				.contains("no haya requirements duplicados")
+				.contains("no debe aparecer como faltante")
+				.contains("no debe aparecer como matching");
+	}
+
 	private HttpOptions buildHttpOptions(GeminiService geminiService) throws Exception {
 		Method buildHttpOptions = GeminiService.class.getDeclaredMethod("buildHttpOptions");
 		buildHttpOptions.setAccessible(true);
 		return (HttpOptions) buildHttpOptions.invoke(geminiService);
 	}
 
+	private GenerateContentConfig buildConfig(GeminiService geminiService) throws Exception {
+		Method buildConfig = GeminiService.class.getDeclaredMethod("buildConfig");
+		buildConfig.setAccessible(true);
+		return (GenerateContentConfig) buildConfig.invoke(geminiService);
+	}
+
 	private HttpRetryOptions buildRetryOptions(GeminiService geminiService) throws Exception {
 		Method buildRetryOptions = GeminiService.class.getDeclaredMethod("buildRetryOptions");
 		buildRetryOptions.setAccessible(true);
 		return (HttpRetryOptions) buildRetryOptions.invoke(geminiService);
+	}
+
+	private Schema buildResponseSchema(GeminiService geminiService) throws Exception {
+		Method buildResponseSchema = GeminiService.class.getDeclaredMethod("buildResponseSchema");
+		buildResponseSchema.setAccessible(true);
+		return (Schema) buildResponseSchema.invoke(geminiService);
+	}
+
+	private GeminiAnalysisResult parseResponse(GeminiService geminiService, String responseText) throws Exception {
+		Method parseResponse = GeminiService.class.getDeclaredMethod("parseResponse", String.class);
+		parseResponse.setAccessible(true);
+		try {
+			return (GeminiAnalysisResult) parseResponse.invoke(geminiService, responseText);
+		}
+		catch (java.lang.reflect.InvocationTargetException exception) {
+			Throwable cause = exception.getCause();
+			if (cause instanceof RuntimeException runtimeException) {
+				throw runtimeException;
+			}
+			throw exception;
+		}
 	}
 
 	private boolean shouldRetry(
@@ -378,13 +669,39 @@ class GeminiServiceTest {
 	private String validResponseJson() {
 		return """
 				{
-				  "matchPercentage": 72,
+				  "requirements": [
+				    {
+				      "name": "Java",
+				      "category": "MANDATORY_TECHNICAL",
+				      "status": "MATCH",
+				      "evidence": "Java aparece en el CV."
+				    }
+				  ],
 				  "matchingSkills": ["Java"],
 				  "missingSkills": ["Docker"],
 				  "recommendations": ["Practicar Docker", "Destacar experiencia con Java"],
 				  "interviewQuestions": ["Pregunta 1", "Pregunta 2", "Pregunta 3"]
 				}
 				""";
+	}
+
+	private String responseWithRequirement(String name, String category, String status, String evidence) {
+		return """
+				{
+				  "requirements": [
+				    {
+				      "name": "%s",
+				      "category": "%s",
+				      "status": "%s",
+				      "evidence": "%s"
+				    }
+				  ],
+				  "matchingSkills": [],
+				  "missingSkills": [],
+				  "recommendations": [],
+				  "interviewQuestions": []
+				}
+				""".formatted(name, category, status, evidence);
 	}
 
 	private static class RetryBehaviorGeminiService extends GeminiService {

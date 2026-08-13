@@ -24,10 +24,14 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.multipart.MultipartFile;
 
-import com.codercup.jobmatchai.dto.AnalysisResponse;
+import com.codercup.jobmatchai.dto.internal.GeminiAnalysisResult;
 import com.codercup.jobmatchai.exception.AiServiceUnavailableException;
 import com.codercup.jobmatchai.exception.ApiExceptionHandler;
 import com.codercup.jobmatchai.exception.InvalidAiResponseException;
+import com.codercup.jobmatchai.scoring.MatchScoreCalculator;
+import com.codercup.jobmatchai.scoring.RequirementAssessment;
+import com.codercup.jobmatchai.scoring.RequirementCategory;
+import com.codercup.jobmatchai.scoring.RequirementStatus;
 import com.codercup.jobmatchai.service.AnalysisService;
 import com.codercup.jobmatchai.service.AnalysisHistoryService;
 import com.codercup.jobmatchai.service.GeminiService;
@@ -37,6 +41,7 @@ import com.codercup.jobmatchai.service.PdfService;
 @Import({
 		AnalysisService.class,
 		PdfService.class,
+		MatchScoreCalculator.class,
 		AnalysisControllerTest.TestHistoryConfiguration.class,
 		ApiExceptionHandler.class,
 		AnalysisControllerTest.TestGeminiConfiguration.class
@@ -83,12 +88,15 @@ class AnalysisControllerTest {
 						.file(cvFile)
 						.file(jobDescription))
 				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.matchPercentage").value(80))
+				.andExpect(jsonPath("$.matchPercentage").value(83))
 				.andExpect(jsonPath("$.matchingSkills[0]").value("Java"))
 				.andExpect(jsonPath("$.matchingSkills[1]").value("Spring Boot"))
 				.andExpect(jsonPath("$.missingSkills[0]").value("Docker"))
 				.andExpect(jsonPath("$.recommendations[0]").value("Aprender fundamentos de Docker"))
-				.andExpect(jsonPath("$.interviewQuestions[0]").value("Como crearias una API REST?"));
+				.andExpect(jsonPath("$.interviewQuestions[0]").value("Como crearias una API REST?"))
+				.andExpect(jsonPath("$.requirements").doesNotExist())
+				.andExpect(jsonPath("$.scoreBreakdown").doesNotExist())
+				.andExpect(jsonPath("$.partialMatches").doesNotExist());
 	}
 
 	@Test
@@ -319,7 +327,7 @@ class AnalysisControllerTest {
 						.file(cvFile)
 						.file(jobImage))
 				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.matchPercentage").value(83))
+				.andExpect(jsonPath("$.matchPercentage").value(86))
 				.andExpect(jsonPath("$.matchingSkills[0]").value("Java"))
 				.andExpect(jsonPath("$.matchingSkills[1]").value("Spring Boot"))
 				.andExpect(jsonPath("$.missingSkills[0]").value("Docker"))
@@ -524,7 +532,7 @@ class AnalysisControllerTest {
 		GeminiService geminiService() {
 			return new GeminiService("test-key", "test-model", 30000, 2, 500) {
 				@Override
-				public AnalysisResponse analyze(String cvText, String jobDescription) {
+				public GeminiAnalysisResult analyze(String cvText, String jobDescription) {
 					if (simulateUnexpectedError) {
 						throw new IllegalStateException("sensitive internal detail");
 					}
@@ -540,8 +548,12 @@ class AnalysisControllerTest {
 						throw new InvalidAiResponseException("No se pudo interpretar la respuesta del servicio de analisis.");
 					}
 
-					return new AnalysisResponse(
-							80,
+					return new GeminiAnalysisResult(
+							List.of(
+									assessment("Java", RequirementCategory.MANDATORY_TECHNICAL, RequirementStatus.MATCH),
+									assessment("Spring Boot", RequirementCategory.MANDATORY_TECHNICAL, RequirementStatus.MATCH),
+									assessment("Docker", RequirementCategory.MANDATORY_TECHNICAL, RequirementStatus.PARTIAL)
+							),
 							List.of("Java", "Spring Boot"),
 							List.of("Docker"),
 							List.of("Aprender fundamentos de Docker"),
@@ -550,7 +562,7 @@ class AnalysisControllerTest {
 				}
 
 				@Override
-				public AnalysisResponse analyze(String cvText, MultipartFile jobImage) {
+				public GeminiAnalysisResult analyze(String cvText, MultipartFile jobImage) {
 					if (simulateImageGeminiUnavailable) {
 						throw new AiServiceUnavailableException(
 								"El servicio de inteligencia artificial no esta disponible temporalmente.",
@@ -562,13 +574,26 @@ class AnalysisControllerTest {
 						throw new InvalidAiResponseException("No se pudo interpretar la imagen de la oferta laboral.");
 					}
 
-					return new AnalysisResponse(
-							83,
+					return new GeminiAnalysisResult(
+							List.of(
+									assessment("Java", RequirementCategory.MANDATORY_TECHNICAL, RequirementStatus.MATCH),
+									assessment("Spring Boot", RequirementCategory.MANDATORY_TECHNICAL, RequirementStatus.MATCH),
+									assessment("Docker", RequirementCategory.MANDATORY_TECHNICAL, RequirementStatus.PARTIAL),
+									assessment("Git", RequirementCategory.COMPLEMENTARY, RequirementStatus.MATCH)
+							),
 							List.of("Java", "Spring Boot"),
 							List.of("Docker"),
 							List.of("Destacar proyectos realizados con Spring Boot"),
 							List.of("Como disenarias una API REST con Spring Boot?")
 					);
+				}
+
+				private RequirementAssessment assessment(
+						String name,
+						RequirementCategory category,
+						RequirementStatus status
+				) {
+					return new RequirementAssessment(name, category, status, "Evidencia de test");
 				}
 			};
 		}

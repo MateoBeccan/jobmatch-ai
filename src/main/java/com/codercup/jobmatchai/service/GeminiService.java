@@ -1,10 +1,13 @@
 package com.codercup.jobmatchai.service;
 
-import com.codercup.jobmatchai.dto.AnalysisResponse;
+import com.codercup.jobmatchai.dto.internal.GeminiAnalysisResult;
 import com.codercup.jobmatchai.exception.AiServiceTimeoutException;
 import com.codercup.jobmatchai.exception.AiServiceUnavailableException;
 import com.codercup.jobmatchai.exception.AnalysisConfigurationException;
 import com.codercup.jobmatchai.exception.InvalidAiResponseException;
+import com.codercup.jobmatchai.scoring.RequirementAssessment;
+import com.codercup.jobmatchai.scoring.RequirementCategory;
+import com.codercup.jobmatchai.scoring.RequirementStatus;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.genai.Client;
@@ -65,7 +68,7 @@ public class GeminiService {
 		this.retryDelayMs = retryDelayMs;
 	}
 
-	public AnalysisResponse analyze(String cvText, String jobDescription) {
+	public GeminiAnalysisResult analyze(String cvText, String jobDescription) {
 		if (apiKey == null || apiKey.isBlank()) {
 			throw new AnalysisConfigurationException("Falta GEMINI_API_KEY. Agrega tu clave de Google AI Studio en el archivo .env y reinicia el backend.");
 		}
@@ -75,7 +78,7 @@ public class GeminiService {
 		return parseResponse(responseText);
 	}
 
-	public AnalysisResponse analyze(String cvText, MultipartFile jobImage) {
+	public GeminiAnalysisResult analyze(String cvText, MultipartFile jobImage) {
 		if (apiKey == null || apiKey.isBlank()) {
 			throw new AnalysisConfigurationException("Falta GEMINI_API_KEY. Agrega tu clave de Google AI Studio en el archivo .env y reinicia el backend.");
 		}
@@ -231,7 +234,7 @@ public class GeminiService {
 		return GenerateContentConfig.builder()
 				.responseMimeType("application/json")
 				.responseSchema(buildResponseSchema())
-				.temperature(0.2f)
+				.seed(42)
 				.build();
 	}
 
@@ -239,6 +242,16 @@ public class GeminiService {
 		Schema stringArraySchema = Schema.builder()
 				.type(Type.Known.ARRAY)
 				.items(Schema.builder().type(Type.Known.STRING).build())
+				.build();
+		Schema requirementSchema = Schema.builder()
+				.type(Type.Known.OBJECT)
+				.properties(buildRequirementSchemaProperties())
+				.required("name", "category", "status", "evidence")
+				.propertyOrdering("name", "category", "status", "evidence")
+				.build();
+		Schema requirementsSchema = Schema.builder()
+				.type(Type.Known.ARRAY)
+				.items(requirementSchema)
 				.build();
 		Schema recommendationsSchema = Schema.builder()
 				.type(Type.Known.ARRAY)
@@ -254,11 +267,7 @@ public class GeminiService {
 				.build();
 
 		Map<String, Schema> properties = new LinkedHashMap<>();
-		properties.put("matchPercentage", Schema.builder()
-				.type(Type.Known.INTEGER)
-				.minimum(0.0)
-				.maximum(100.0)
-				.build());
+		properties.put("requirements", requirementsSchema);
 		properties.put("matchingSkills", stringArraySchema);
 		properties.put("missingSkills", stringArraySchema);
 		properties.put("recommendations", recommendationsSchema);
@@ -268,14 +277,14 @@ public class GeminiService {
 				.type(Type.Known.OBJECT)
 				.properties(properties)
 				.required(
-						"matchPercentage",
+						"requirements",
 						"matchingSkills",
 						"missingSkills",
 						"recommendations",
 						"interviewQuestions"
 				)
 				.propertyOrdering(
-						"matchPercentage",
+						"requirements",
 						"matchingSkills",
 						"missingSkills",
 						"recommendations",
@@ -284,45 +293,52 @@ public class GeminiService {
 				.build();
 	}
 
+	private Map<String, Schema> buildRequirementSchemaProperties() {
+		Map<String, Schema> properties = new LinkedHashMap<>();
+		properties.put("name", Schema.builder()
+				.type(Type.Known.STRING)
+				.minLength(1L)
+				.build());
+		properties.put("category", Schema.builder()
+				.type(Type.Known.STRING)
+				.enum_(
+						RequirementCategory.MANDATORY_TECHNICAL.name(),
+						RequirementCategory.EXPERIENCE_SENIORITY.name(),
+						RequirementCategory.DESIRABLE.name(),
+						RequirementCategory.COMPLEMENTARY.name()
+				)
+				.build());
+		properties.put("status", Schema.builder()
+				.type(Type.Known.STRING)
+				.enum_(
+						RequirementStatus.MATCH.name(),
+						RequirementStatus.PARTIAL.name(),
+						RequirementStatus.MISSING.name()
+				)
+				.build());
+		properties.put("evidence", Schema.builder()
+				.type(Type.Known.STRING)
+				.build());
+		return properties;
+	}
+
 	private String buildPrompt(String cvText, String jobDescription) {
 		return """
 				Actua como un asistente de analisis profesional de postulaciones laborales.
 				Compara unicamente la informacion proporcionada.
 
-				Antes de responder, analiza internamente la oferta y separa:
-				- requisitos obligatorios;
-				- requisitos deseables;
-				- experiencia y seniority requerido;
-				- habilidades tecnicas principales;
-				- conocimientos complementarios.
-				No devuelvas estas categorias en el JSON; usalas solo para mejorar la evaluacion.
+				Debes interpretar los requisitos de la oferta y clasificarlos en requirements.
+				No calcules porcentajes ni estimes compatibilidad numerica.
+				Java calculara el porcentaje final de manera determinista a partir de requirements.
 
 				%s
-
-				Criterio orientativo para matchPercentage:
-				- Requisitos obligatorios y habilidades tecnicas principales: 60%%.
-				- Experiencia y seniority requerido: 20%%.
-				- Requisitos deseables: 10%%.
-				- Habilidades complementarias relevantes: 10%%.
-				No apliques una formula exacta si la oferta no permite hacerlo, pero respeta esta ponderacion como guia.
-				Si el candidato cumple tecnologias obligatorias como Java, Spring Boot, SQL o REST APIs, eso debe pesar
-				mucho mas que no conocer una herramienta deseable. Si la oferta exige seniority o anos de experiencia
-				y el CV no demuestra ese nivel, reflejalo de forma significativa en el porcentaje.
-
-				Interpretacion aproximada de matchPercentage:
-				- 80 a 100: compatibilidad alta.
-				- 60 a 79: compatibilidad buena.
-				- 40 a 59: compatibilidad media.
-				- 20 a 39: compatibilidad baja.
-				- 0 a 19: compatibilidad muy baja.
-				No fuerces artificialmente el resultado dentro de una banda.
+				%s
 
 				Instrucciones obligatorias:
 				- No inventes experiencia, conocimientos, titulos ni habilidades.
 				- No asumas que el candidato conoce una tecnologia si no aparece en el CV.
 				- Diferencia coincidencias y requisitos faltantes.
 				- Evalua habilidades tecnicas y requisitos relevantes.
-				- El porcentaje debe ser orientativo y estar entre 0 y 100.
 				- No rechaces automaticamente a una persona por requisitos faltantes.
 				- No realices inferencias sobre edad, genero, raza, religion, nacionalidad, discapacidad,
 				  orientacion sexual u otros atributos sensibles.
@@ -370,7 +386,7 @@ public class GeminiService {
 				---
 				%s
 				---
-				""".formatted(buildAlternativeAndRecommendationRules(), cvText, jobDescription);
+				""".formatted(buildRequirementExtractionRules(), buildAlternativeAndRecommendationRules(), cvText, jobDescription);
 	}
 
 	private Content buildImageContent(String cvText, MultipartFile jobImage) throws IOException {
@@ -387,36 +403,12 @@ public class GeminiService {
 				Lee e interpreta unicamente la informacion visible en la imagen.
 				Ignora elementos visuales que no sean relevantes para la vacante.
 
-				Identifica internamente:
-				- requisitos obligatorios;
-				- requisitos deseables;
-				- experiencia requerida;
-				- seniority;
-				- tecnologias;
-				- responsabilidades relevantes;
-				- habilidades tecnicas principales;
-				- conocimientos complementarios.
-				No devuelvas estas categorias en el JSON; usalas solo para comparar esos requisitos con el CV proporcionado.
+				Debes interpretar los requisitos visibles de la oferta y clasificarlos en requirements.
+				No calcules porcentajes ni estimes compatibilidad numerica.
+				Java calculara el porcentaje final de manera determinista a partir de requirements.
 
 				%s
-
-				Criterio orientativo para matchPercentage:
-				- Requisitos obligatorios y habilidades tecnicas principales: 60%%.
-				- Experiencia y seniority requerido: 20%%.
-				- Requisitos deseables: 10%%.
-				- Habilidades complementarias relevantes: 10%%.
-				No apliques una formula exacta si la imagen no permite hacerlo, pero respeta esta ponderacion como guia.
-				Si el candidato cumple tecnologias obligatorias como Java, Spring Boot, SQL o REST APIs, eso debe pesar
-				mucho mas que no conocer una herramienta deseable. Si la oferta exige seniority o anos de experiencia
-				y el CV no demuestra ese nivel, reflejalo de forma significativa en el porcentaje.
-
-				Interpretacion aproximada de matchPercentage:
-				- 80 a 100: compatibilidad alta.
-				- 60 a 79: compatibilidad buena.
-				- 40 a 59: compatibilidad media.
-				- 20 a 39: compatibilidad baja.
-				- 0 a 19: compatibilidad muy baja.
-				No fuerces artificialmente el resultado dentro de una banda.
+				%s
 
 				Instrucciones obligatorias:
 				- No inventes experiencia, conocimientos, titulos ni habilidades.
@@ -424,7 +416,6 @@ public class GeminiService {
 				- No asumas que el candidato conoce una tecnologia si no aparece en el CV.
 				- Diferencia coincidencias y requisitos faltantes.
 				- Evalua habilidades tecnicas y requisitos relevantes.
-				- El porcentaje debe ser orientativo y estar entre 0 y 100.
 				- No rechaces automaticamente a una persona por requisitos faltantes.
 				- No realices inferencias sobre edad, genero, raza, religion, nacionalidad, discapacidad,
 				  orientacion sexual u otros atributos sensibles.
@@ -467,7 +458,81 @@ public class GeminiService {
 				---
 				%s
 				---
-				""".formatted(buildAlternativeAndRecommendationRules(), cvText);
+				""".formatted(buildRequirementExtractionRules(), buildAlternativeAndRecommendationRules(), cvText);
+	}
+
+	private String buildRequirementExtractionRules() {
+		return """
+				requirements:
+				- Segui dos fases internas estrictas, sin devolverlas por separado:
+				  FASE A: extrae requisitos exclusivamente desde la oferta, sin usar el CV para decidir que requisitos existen.
+				  FASE B: evalua cada requisito extraido contra el CV.
+				- Devolve un elemento por cada requisito realmente presente en la oferta.
+				- Cada elemento debe tener name, category, status y evidence.
+				- name debe ser corto, estable y describir el requisito real de la oferta.
+				  Preferi nombres como "Java", "Spring Boot", "SQL", "Docker" o "5+ anos de experiencia web".
+				- evidence debe justificar solo la clasificacion, sin recomendaciones.
+				  Ejemplos: "Java aparece explicitamente en habilidades y proyectos.",
+				  "El CV no demuestra 5 anos de experiencia profesional.",
+				  "El CV demuestra Vue.js, pero no menciona JavaScript o TypeScript explicitamente."
+				- No agregues requisitos implicitos ni tecnologias que la oferta no menciona.
+				  Si la oferta dice "Java, Spring Boot y SQL", no agregues Maven, Hibernate, JUnit ni Docker salvo que
+				  la oferta los mencione.
+				- No dupliques requisitos semanticamente equivalentes.
+				  Si la oferta menciona Java varias veces, crea un solo requirement para Java.
+				  Si la oferta menciona "Java" y tambien "5 anos con Java", pueden ser dos requirements distintos:
+				  "Java" como MANDATORY_TECHNICAL y "5 anos con Java" como EXPERIENCE_SENIORITY.
+				- Usa exclusivamente estos valores de category:
+				  MANDATORY_TECHNICAL, EXPERIENCE_SENIORITY, DESIRABLE, COMPLEMENTARY.
+				- Usa exclusivamente estos valores de status:
+				  MATCH, PARTIAL, MISSING.
+
+				Category:
+				- Aplica las reglas de category en este orden de prioridad.
+				- PRIORIDAD 1, EXPERIENCE_SENIORITY: si el requisito expresa anos de experiencia, seniority, nivel
+				  profesional o experiencia temporal. Ejemplos: "5+ anos de desarrollo web",
+				  "1+ ano de experiencia full-stack", "Senior Java Developer".
+				  Aunque contenga una tecnologia, si el requisito principal es temporal o seniority, usa EXPERIENCE_SENIORITY.
+				- PRIORIDAD 2, DESIRABLE: si la oferta usa expresiones explicitas como "deseable", "se valora",
+				  "nice to have", "preferred", "plus" o "sera valorado". Aunque sea una tecnologia, usa DESIRABLE.
+				  Ejemplo: "Docker sera valorado" debe ser DESIRABLE.
+				- PRIORIDAD 3, MANDATORY_TECHNICAL: tecnologias, frameworks, lenguajes, bases de datos o practicas
+				  tecnicas requeridas como parte principal del puesto. Ejemplos: Java, Spring Boot, SQL, REST APIs.
+				- PRIORIDAD 4, COMPLEMENTARY: otros requisitos profesionales explicitos como Git, Scrum, Agile,
+				  ingles, formacion o herramientas colaborativas, solo cuando no encajan en categorias anteriores.
+				  No uses COMPLEMENTARY como categoria generica para resolver dudas.
+
+				Status:
+				- Aplica las reglas de status en este orden:
+				  MATCH: evidencia directa suficiente.
+				  MISSING: no existe evidencia suficiente.
+				  PARTIAL: solo cuando existe evidencia concreta que cumple una parte real del requisito.
+				- No uses PARTIAL como resultado de incertidumbre ni para suavizar resultados.
+				- Si el requisito se refiere especificamente a anos de experiencia profesional y el CV no demuestra
+				  ese minimo, clasificalo como MISSING.
+				- Si la oferta pide "1+ ano profesional full-stack" y el CV solo muestra un proyecto academico
+				  full-stack sin experiencia profesional demostrada, clasificalo como MISSING.
+				- Una tecnologia en skills, estudios, proyectos o experiencia puede demostrar conocimiento.
+				- Un proyecto academico o personal no demuestra automaticamente anos de experiencia profesional.
+				- No uses asociaciones vagas: Java no implica Kotlin; MySQL no implica PostgreSQL; Vue.js no demuestra
+				  automaticamente TypeScript; Spring Boot no implica Docker.
+				- Si una tecnologia compuesta demuestra claramente parte de un requisito compuesto, PARTIAL puede usarse
+				  siempre con la misma regla. Ejemplo: si la oferta pide "JavaScript / TypeScript" y el CV demuestra
+				  Vue.js pero no menciona JS/TS explicitamente, PARTIAL puede ser razonable.
+				- "Java o Kotlin" debe ser un solo requirement, MATCH si el CV demuestra cualquiera.
+				- "AWS, Azure o GCP" debe ser un solo requirement, MATCH si demuestra al menos una alternativa.
+				- "Java y Spring Boot" deben ser dos requirements independientes.
+				- "Docker y Kubernetes" deben ser dos requirements independientes.
+
+				Consistencia final:
+				- Antes de responder, revisa internamente que no haya requirements duplicados.
+				- Revisa que cada requirement provenga de la oferta.
+				- Revisa que category siga las prioridades anteriores.
+				- Revisa que status siga las reglas anteriores.
+				- Si un requirement tiene status MATCH, no debe aparecer como faltante.
+				- Si un requirement tiene status MISSING, no debe aparecer como matching.
+				- Si un requirement tiene status PARTIAL, no lo presentes como cumplimiento completo.
+				""";
 	}
 
 	private String buildAlternativeAndRecommendationRules() {
@@ -511,16 +576,16 @@ public class GeminiService {
 				""";
 	}
 
-	private AnalysisResponse parseResponse(String responseText) {
+	private GeminiAnalysisResult parseResponse(String responseText) {
 		if (responseText == null || responseText.isBlank()) {
 			throw new InvalidAiResponseException("No se pudo interpretar la respuesta del servicio de analisis.");
 		}
 
 		try {
-			AnalysisResponse response = objectMapper.readValue(responseText, AnalysisResponse.class);
+			GeminiAnalysisResult response = objectMapper.readValue(responseText, GeminiAnalysisResult.class);
 			return validateAndNormalizeResponse(response);
 		}
-		catch (JsonProcessingException exception) {
+		catch (JsonProcessingException | IllegalArgumentException | NullPointerException exception) {
 			throw new InvalidAiResponseException(
 					"No se pudo interpretar la respuesta del servicio de analisis.",
 					exception
@@ -528,20 +593,30 @@ public class GeminiService {
 		}
 	}
 
-	private AnalysisResponse validateAndNormalizeResponse(AnalysisResponse response) {
-		if (response.matchPercentage() == null
-				|| response.matchPercentage() < 0
-				|| response.matchPercentage() > 100) {
+	private GeminiAnalysisResult validateAndNormalizeResponse(GeminiAnalysisResult response) {
+		if (response.requirements() == null) {
 			throw new InvalidAiResponseException("No se pudo interpretar la respuesta del servicio de analisis.");
 		}
 
-		return new AnalysisResponse(
-				response.matchPercentage(),
+		try {
+			return new GeminiAnalysisResult(
+				validateRequirements(response.requirements()),
 				emptyIfNull(response.matchingSkills()),
 				emptyIfNull(response.missingSkills()),
 				emptyIfNull(response.recommendations()),
 				emptyIfNull(response.interviewQuestions())
-		);
+			);
+		}
+		catch (IllegalArgumentException | NullPointerException exception) {
+			throw new InvalidAiResponseException(
+					"No se pudo interpretar la respuesta del servicio de analisis.",
+					exception
+			);
+		}
+	}
+
+	private List<RequirementAssessment> validateRequirements(List<RequirementAssessment> requirements) {
+		return List.copyOf(requirements);
 	}
 
 	private List<String> emptyIfNull(List<String> values) {

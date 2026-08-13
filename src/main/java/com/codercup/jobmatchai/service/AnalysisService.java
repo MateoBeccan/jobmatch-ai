@@ -1,7 +1,10 @@
 package com.codercup.jobmatchai.service;
 
 import com.codercup.jobmatchai.dto.AnalysisResponse;
+import com.codercup.jobmatchai.dto.internal.GeminiAnalysisResult;
 import com.codercup.jobmatchai.exception.InvalidAnalysisRequestException;
+import com.codercup.jobmatchai.scoring.MatchScoreCalculator;
+import com.codercup.jobmatchai.scoring.MatchScoreResult;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -21,21 +24,27 @@ public class AnalysisService {
 
 	private final PdfService pdfService;
 	private final GeminiService geminiService;
+	private final MatchScoreCalculator matchScoreCalculator;
 
-	public AnalysisService(PdfService pdfService, GeminiService geminiService) {
+	public AnalysisService(
+			PdfService pdfService,
+			GeminiService geminiService,
+			MatchScoreCalculator matchScoreCalculator
+	) {
 		this.pdfService = pdfService;
 		this.geminiService = geminiService;
+		this.matchScoreCalculator = matchScoreCalculator;
 	}
 
 	public AnalysisResponse analyze(MultipartFile cvFile, String jobDescription, MultipartFile jobImage) {
 		validateRequest(cvFile, jobDescription, jobImage);
 		String cvText = pdfService.extractText(cvFile);
 
-		if (hasText(jobDescription)) {
-			return geminiService.analyze(cvText, jobDescription);
-		}
+		GeminiAnalysisResult aiResult = hasText(jobDescription)
+				? geminiService.analyze(cvText, jobDescription)
+				: geminiService.analyze(cvText, jobImage);
 
-		return geminiService.analyze(cvText, jobImage);
+		return buildAnalysisResponse(aiResult);
 	}
 
 	public AnalysisResponse analyze(MultipartFile cvFile, String jobDescription) {
@@ -97,6 +106,17 @@ public class AnalysisService {
 
 	private boolean hasText(String value) {
 		return value != null && !value.isBlank();
+	}
+
+	private AnalysisResponse buildAnalysisResponse(GeminiAnalysisResult aiResult) {
+		MatchScoreResult score = matchScoreCalculator.calculate(aiResult.requirements());
+		return new AnalysisResponse(
+				score.matchPercentage(),
+				aiResult.matchingSkills(),
+				aiResult.missingSkills(),
+				aiResult.recommendations(),
+				aiResult.interviewQuestions()
+		);
 	}
 
 }
