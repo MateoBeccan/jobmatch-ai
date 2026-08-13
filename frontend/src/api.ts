@@ -1,38 +1,29 @@
-import type { AnalysisMode, AnalysisResponse, HistoryRecord } from './types'
+import type { AnalysisMode, HistoryRecord } from './types'
 
 const API_URL = (import.meta.env.VITE_API_URL ?? 'http://localhost:8080').replace(/\/$/, '')
 
-export async function analyzeJobMatch(
-  cvFile: File,
-  mode: 'text' | 'image',
-  jobDescription: string,
-  jobImage: File | null,
-): Promise<AnalysisResponse> {
-  const formData = new FormData()
-  formData.append('cvFile', cvFile)
+type ApiErrorBody = { message?: unknown }
 
-  if (mode === 'text') {
-    formData.append('jobDescription', jobDescription)
-  } else if (jobImage) {
-    formData.append('jobImage', jobImage)
-  }
-
+async function request(path: string, init: RequestInit, connectionMessage: string, fallbackMessage: string) {
   let response: Response
   try {
-    response = await fetch(`${API_URL}/api/analyze`, {
-      method: 'POST',
-      body: formData,
-    })
+    response = await fetch(`${API_URL}${path}`, init)
   } catch {
-    throw new Error(`No se pudo conectar con el backend en ${API_URL}. Inicia el servidor Spring Boot y vuelve a intentarlo.`)
+    throw new Error(connectionMessage)
   }
 
   if (!response.ok) {
-    const errorBody = (await response.json().catch(() => null)) as { message?: string } | null
-    throw new Error(errorBody?.message ?? 'No se pudo completar el análisis.')
+    const errorBody = await response.json().catch(() => null) as ApiErrorBody | null
+    const message = typeof errorBody?.message === 'string' ? errorBody.message : fallbackMessage
+    throw new Error(message)
   }
 
-  return response.json() as Promise<AnalysisResponse>
+  return response
+}
+
+async function requestJson<T>(path: string, init: RequestInit, connectionMessage: string, fallbackMessage: string): Promise<T> {
+  const response = await request(path, init, connectionMessage, fallbackMessage)
+  return response.json() as Promise<T>
 }
 
 export async function createAnalysis(
@@ -48,32 +39,29 @@ export async function createAnalysis(
   if (mode === 'text') formData.append('jobDescription', jobDescription)
   else if (jobImage) formData.append('jobImage', jobImage)
 
-  let response: Response
-  try {
-    response = await fetch(`${API_URL}/api/analyses`, { method: 'POST', body: formData })
-  } catch {
-    throw new Error(`No se pudo conectar con el backend en ${API_URL}.`)
-  }
-  if (!response.ok) {
-    const errorBody = (await response.json().catch(() => null)) as { message?: string } | null
-    throw new Error(errorBody?.message ?? 'No se pudo guardar el análisis.')
-  }
-  return response.json() as Promise<HistoryRecord>
+  return requestJson<HistoryRecord>(
+    '/api/analyses',
+    { method: 'POST', body: formData },
+    `No se pudo conectar con el backend en ${API_URL}.`,
+    'No se pudo guardar el análisis.',
+  )
 }
 
 export async function getAnalyses(): Promise<HistoryRecord[]> {
-  let response: Response
-  try {
-    response = await fetch(`${API_URL}/api/analyses`)
-  } catch {
-    throw new Error(`No se pudo conectar con el historial en ${API_URL}. Comprueba que Spring Boot esté iniciado.`)
-  }
-  if (!response.ok) throw new Error(`No se pudo cargar el historial (HTTP ${response.status}).`)
-  const records = await response.json() as Array<HistoryRecord & { createdAt: string | number }>
+  const records = await requestJson<Array<HistoryRecord & { createdAt: string | number }>>(
+    '/api/analyses',
+    {},
+    `No se pudo conectar con el historial en ${API_URL}. Comprueba que Spring Boot esté iniciado.`,
+    'No se pudo cargar el historial.',
+  )
   return records.map((record) => ({ ...record, createdAt: typeof record.createdAt === 'string' ? new Date(record.createdAt).getTime() : record.createdAt }))
 }
 
 export async function deleteAnalysis(id: string): Promise<void> {
-  const response = await fetch(`${API_URL}/api/analyses/${encodeURIComponent(id)}`, { method: 'DELETE' })
-  if (!response.ok) throw new Error('No se pudo eliminar el análisis.')
+  await request(
+    `/api/analyses/${encodeURIComponent(id)}`,
+    { method: 'DELETE' },
+    `No se pudo conectar con el backend en ${API_URL}.`,
+    'No se pudo eliminar el análisis.',
+  )
 }

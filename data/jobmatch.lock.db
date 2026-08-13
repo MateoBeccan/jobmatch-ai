@@ -1,6 +1,6 @@
 #FileLock
-#Thu Aug 13 03:15:03 UYT 2026
+#Thu Aug 13 14:03:06 UYT 2026
 hostName=PCdeFrancisco
-id=19ff9c286f9b6b9558be2497477ac6540a0cc19d81f
+id=19ffc13cec05f2fee1995c129e7fac213d5fba9eafb
 method=file
-server=192.168.1.11\:49452
+server=192.168.1.11\:53126
