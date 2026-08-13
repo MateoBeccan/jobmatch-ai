@@ -17,6 +17,9 @@ public class AnalysisEntity {
 	@GeneratedValue(strategy = GenerationType.UUID)
 	private String id;
 
+	@Column(name = "owner_id", nullable = false, length = 120)
+	private String ownerId;
+
 	@Column(nullable = false, length = 160)
 	private String cvFileName;
 
@@ -49,8 +52,9 @@ public class AnalysisEntity {
 	protected AnalysisEntity() {
 	}
 
-	public AnalysisEntity(String cvFileName, String cvVersion, String role, String company,
+	public AnalysisEntity(String ownerId, String cvFileName, String cvVersion, String role, String company,
 			String jobDescription, String mode, Integer score, Instant createdAt, String resultJson) {
+		this.ownerId = ownerId;
 		this.cvFileName = cvFileName;
 		this.cvVersion = cvVersion;
 		this.role = role;
@@ -63,6 +67,7 @@ public class AnalysisEntity {
 	}
 
 	public String getId() { return id; }
+	public String getOwnerId() { return ownerId; }
 	public String getCvFileName() { return cvFileName; }
 	public String getCvVersion() { return cvVersion; }
 	public String getRole() { return role; }

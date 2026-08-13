@@ -7,6 +7,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
@@ -53,6 +56,21 @@ public class ApiExceptionHandler {
 		return ResponseEntity
 				.status(HttpStatus.CONTENT_TOO_LARGE)
 				.body(new ApiErrorResponse("El archivo enviado supera el tamaño maximo permitido."));
+	}
+
+	@ExceptionHandler({MissingServletRequestPartException.class, MissingServletRequestParameterException.class})
+	public ResponseEntity<ApiErrorResponse> handleMissingRequestPart(Exception exception) {
+		return ResponseEntity
+				.status(HttpStatus.BAD_REQUEST)
+				.body(new ApiErrorResponse("Falta información requerida para procesar la solicitud."));
+	}
+
+	@ExceptionHandler(ResponseStatusException.class)
+	public ResponseEntity<ApiErrorResponse> handleResponseStatusException(ResponseStatusException exception) {
+		String reason = exception.getReason() == null ? "La solicitud no pudo procesarse." : exception.getReason();
+		return ResponseEntity
+				.status(exception.getStatusCode())
+				.body(new ApiErrorResponse(reason));
 	}
 
 	@ExceptionHandler(Exception.class)

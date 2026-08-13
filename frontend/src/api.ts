@@ -1,15 +1,68 @@
-import type { AnalysisMode, HistoryRecord } from './types'
+import type { AnalysisHistoryPage, AnalysisMode, AnalysisSummary, HistoryRecord } from './types'
 
 const API_URL = (import.meta.env.VITE_API_URL ?? 'http://localhost:8080').replace(/\/$/, '')
+const API_USERNAME = import.meta.env.VITE_API_USERNAME ?? 'demo'
+const API_PASSWORD = import.meta.env.VITE_API_PASSWORD ?? 'demo-password'
+const REQUEST_TIMEOUT_MS = 35000
+
+function authorizationHeader() {
+  return `Basic ${btoa(`${API_USERNAME}:${API_PASSWORD}`)}`
+}
 
 type ApiErrorBody = { message?: unknown }
 
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === 'string')
+}
+
+function normalizeCreatedAt(value: string | number) {
+  const timestamp = typeof value === 'string' ? new Date(value).getTime() : value
+  if (!Number.isFinite(timestamp)) throw new Error('La respuesta contiene una fecha inválida.')
+  return timestamp
+}
+
+function normalizeHistoryRecord(record: HistoryRecord & { createdAt: string | number }): HistoryRecord {
+  const result = record.result
+  if (!result || typeof result.matchPercentage !== 'number' || result.matchPercentage < 0 || result.matchPercentage > 100
+    || !isStringArray(result.matchingSkills)
+    || !isStringArray(result.missingSkills)
+    || !isStringArray(result.recommendations)
+    || !isStringArray(result.interviewQuestions)) {
+    throw new Error('El análisis devolvió un formato inválido.')
+  }
+
+  return { ...record, createdAt: normalizeCreatedAt(record.createdAt) }
+}
+
 async function request(path: string, init: RequestInit, connectionMessage: string, fallbackMessage: string) {
   let response: Response
+  const controller = new AbortController()
+  let timedOut = false
+  const timeout = setTimeout(() => {
+    timedOut = true
+    controller.abort()
+  }, REQUEST_TIMEOUT_MS)
+  const abortRequest = () => controller.abort()
+  init.signal?.addEventListener('abort', abortRequest, { once: true })
   try {
-    response = await fetch(`${API_URL}${path}`, init)
-  } catch {
+    response = await fetch(`${API_URL}${path}`, {
+      ...init,
+      signal: controller.signal,
+      headers: {
+        Authorization: authorizationHeader(),
+        Accept: 'application/json',
+        ...init.headers,
+      },
+    })
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError' && timedOut) {
+      throw new Error('La solicitud tardó demasiado. Intenta nuevamente.')
+    }
+    if (error instanceof DOMException && error.name === 'AbortError') throw error
     throw new Error(connectionMessage)
+  } finally {
+    clearTimeout(timeout)
+    init.signal?.removeEventListener('abort', abortRequest)
   }
 
   if (!response.ok) {
@@ -32,6 +85,7 @@ export async function createAnalysis(
   jobDescription: string,
   jobImage: File | null,
   cvVersion = 'CV sin versión',
+  signal?: AbortSignal,
 ): Promise<HistoryRecord> {
   const formData = new FormData()
   formData.append('cvFile', cvFile)
@@ -39,22 +93,43 @@ export async function createAnalysis(
   if (mode === 'text') formData.append('jobDescription', jobDescription)
   else if (jobImage) formData.append('jobImage', jobImage)
 
-  return requestJson<HistoryRecord>(
+  const response = await requestJson<HistoryRecord & { createdAt: string | number }>(
     '/api/analyses',
-    { method: 'POST', body: formData },
+    { method: 'POST', body: formData, signal },
     `No se pudo conectar con el backend en ${API_URL}.`,
     'No se pudo guardar el análisis.',
   )
+  return normalizeHistoryRecord(response)
 }
 
-export async function getAnalyses(): Promise<HistoryRecord[]> {
-  const records = await requestJson<Array<HistoryRecord & { createdAt: string | number }>>(
-    '/api/analyses',
-    {},
+export async function getAnalyses(page = 0, size = 20, signal?: AbortSignal): Promise<AnalysisHistoryPage> {
+  const response = await requestJson<AnalysisHistoryPage & { content: Array<Omit<AnalysisSummary, 'createdAt'> & { createdAt: string | number }> }>(
+    `/api/analyses?page=${page}&size=${size}`,
+    { signal },
     `No se pudo conectar con el historial en ${API_URL}. Comprueba que Spring Boot esté iniciado.`,
     'No se pudo cargar el historial.',
   )
-  return records.map((record) => ({ ...record, createdAt: typeof record.createdAt === 'string' ? new Date(record.createdAt).getTime() : record.createdAt }))
+  if (!Array.isArray(response.content)) {
+    throw new Error('El historial devolvió un formato inválido.')
+  }
+
+  return {
+    ...response,
+    content: response.content.map((record) => ({
+      ...record,
+      createdAt: normalizeCreatedAt(record.createdAt),
+    })),
+  }
+}
+
+export async function getAnalysis(id: string, signal?: AbortSignal): Promise<HistoryRecord> {
+  const response = await requestJson<HistoryRecord & { createdAt: string | number }>(
+    `/api/analyses/${encodeURIComponent(id)}`,
+    { signal },
+    `No se pudo conectar con el análisis en ${API_URL}.`,
+    'No se pudo cargar el análisis.',
+  )
+  return normalizeHistoryRecord(response)
 }
 
 export async function deleteAnalysis(id: string): Promise<void> {

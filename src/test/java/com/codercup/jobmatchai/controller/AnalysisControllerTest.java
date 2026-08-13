@@ -9,6 +9,8 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.awt.image.BufferedImage;
+import javax.imageio.ImageIO;
 import java.util.List;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
@@ -155,7 +157,7 @@ class AnalysisControllerTest {
 				"jobDescription",
 				"",
 				"text/plain",
-				"a".repeat(15001).getBytes()
+				"a".repeat(5001).getBytes()
 		);
 
 		mockMvc.perform(multipart("/api/analyze")
@@ -163,7 +165,7 @@ class AnalysisControllerTest {
 						.file(jobDescription))
 				.andExpect(status().isBadRequest())
 				.andExpect(jsonPath("$.message").value(
-						"La descripcion de la oferta no puede superar los 15000 caracteres."
+						"La descripcion de la oferta no puede superar los 5000 caracteres."
 				));
 	}
 
@@ -320,7 +322,7 @@ class AnalysisControllerTest {
 				"jobImage",
 				"job.png",
 				"image/png",
-				new byte[] {1, 2, 3}
+				createPng()
 		);
 
 		mockMvc.perform(multipart("/api/analyze")
@@ -368,7 +370,7 @@ class AnalysisControllerTest {
 				"jobImage",
 				"job.png",
 				"image/png",
-				new byte[] {1, 2, 3}
+				createPng()
 		);
 
 		mockMvc.perform(multipart("/api/analyze")
@@ -458,7 +460,7 @@ class AnalysisControllerTest {
 				"jobImage",
 				"job.png",
 				"image/png",
-				new byte[] {1, 2, 3}
+				createPng()
 		);
 
 		mockMvc.perform(multipart("/api/analyze")
@@ -509,6 +511,14 @@ class AnalysisControllerTest {
 				.append("%%EOF\n");
 
 		return pdf.toString().getBytes(StandardCharsets.US_ASCII);
+	}
+
+	private byte[] createPng() throws IOException {
+		BufferedImage image = new BufferedImage(2, 2, BufferedImage.TYPE_INT_RGB);
+		try (ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
+			ImageIO.write(image, "png", outputStream);
+			return outputStream.toByteArray();
+		}
 	}
 
 	private String escapePdfText(String text) {

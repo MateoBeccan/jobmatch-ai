@@ -63,6 +63,43 @@ body,
   gap: 16px;
 }
 
+.spinner {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  border: 2px solid var(--line);
+  border-top-color: var(--blue);
+  border-radius: 50%;
+  animation: app-spinner .8s linear infinite;
+}
+
+.load-more-button {
+  display: block;
+  margin: 28px auto 0;
+  padding: 10px 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--blue);
+  background: var(--card);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.load-more-button:hover:not(:disabled) {
+  border-color: var(--blue);
+  background: var(--soft-blue);
+}
+
+.load-more-button:disabled {
+  cursor: wait;
+  opacity: .65;
+}
+
+@keyframes app-spinner {
+  to { transform: rotate(360deg); }
+}
+
 .app-header .theme-toggle {
   margin-left: 24px;
 }
@@ -549,4 +586,6 @@ html:root[data-theme='dark'] .results-card .result-grid .result-panel.questions 
   .offer-card textarea {
     transition: none;
   }
+
+  .spinner { animation: none; }
 }

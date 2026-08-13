@@ -9,6 +9,10 @@ import com.codercup.jobmatchai.scoring.RequirementAssessment;
 import com.codercup.jobmatchai.scoring.RequirementCategory;
 import com.codercup.jobmatchai.scoring.RequirementStatus;
 import java.util.List;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import javax.imageio.ImageIO;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.web.multipart.MultipartFile;
@@ -55,7 +59,7 @@ class AnalysisServiceTest {
 	}
 
 	@Test
-	void textAndImageFlowsUseMatchScoreCalculator() {
+	void textAndImageFlowsUseMatchScoreCalculator() throws IOException {
 		FakeGeminiService geminiService = new FakeGeminiService(integrationResult());
 		AnalysisService analysisService = new AnalysisService(
 				new FakePdfService(),
@@ -112,12 +116,20 @@ class AnalysisServiceTest {
 		);
 	}
 
-	private MockMultipartFile validJobImage() {
+	private byte[] createPng() throws IOException {
+		BufferedImage image = new BufferedImage(2, 2, BufferedImage.TYPE_INT_RGB);
+		try (ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
+			ImageIO.write(image, "png", outputStream);
+			return outputStream.toByteArray();
+		}
+	}
+
+	private MockMultipartFile validJobImage() throws IOException {
 		return new MockMultipartFile(
 				"jobImage",
 				"job.png",
 				"image/png",
-				new byte[] {1}
+				createPng()
 		);
 	}
 

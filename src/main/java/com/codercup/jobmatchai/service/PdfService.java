@@ -6,6 +6,7 @@ import java.util.Locale;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -14,17 +15,41 @@ public class PdfService {
 
 	private static final long MAX_CV_FILE_SIZE_BYTES = 5L * 1024L * 1024L;
 	private static final String PDF_CONTENT_TYPE = "application/pdf";
+	private final int maxPages;
+	private final int maxTextLength;
+
+	public PdfService() {
+		this(50, 50000);
+	}
+
+	@org.springframework.beans.factory.annotation.Autowired
+	public PdfService(
+			@Value("${analysis.max-pdf-pages:50}") int maxPages,
+			@Value("${analysis.max-pdf-text-length:50000}") int maxTextLength
+	) {
+		if (maxPages < 1 || maxTextLength < 1) {
+			throw new IllegalArgumentException("Los límites del PDF deben ser mayores a 0.");
+		}
+		this.maxPages = maxPages;
+		this.maxTextLength = maxTextLength;
+	}
 
 	public String extractText(MultipartFile file) {
 		validatePdfFile(file);
 
 		try (PDDocument document = Loader.loadPDF(file.getBytes())) {
+			if (document.getNumberOfPages() > maxPages) {
+				throw new InvalidAnalysisRequestException("El CV supera el máximo de páginas permitido.");
+			}
 			String text = new PDFTextStripper().getText(document);
 
 			if (text == null || text.trim().isEmpty()) {
 				throw new InvalidAnalysisRequestException(
 						"No se pudo extraer texto del CV. Verifica que el PDF contenga texto seleccionable."
 				);
+			}
+			if (text.length() > maxTextLength) {
+				throw new InvalidAnalysisRequestException("El texto extraído del CV supera el máximo permitido.");
 			}
 
 			return text;

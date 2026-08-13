@@ -8,6 +8,9 @@ import com.codercup.jobmatchai.scoring.MatchScoreResult;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.io.IOException;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -15,7 +18,7 @@ import org.springframework.web.multipart.MultipartFile;
 public class AnalysisService {
 
 	private static final long MAX_JOB_IMAGE_SIZE_BYTES = 5L * 1024L * 1024L;
-	private static final int MAX_JOB_DESCRIPTION_LENGTH = 15000;
+	private static final int MAX_JOB_IMAGE_DIMENSION = 8000;
 	private static final Map<String, Set<String>> ALLOWED_JOB_IMAGE_EXTENSIONS_BY_CONTENT_TYPE = Map.of(
 			"image/png", Set.of(".png"),
 			"image/jpeg", Set.of(".jpg", ".jpeg"),
@@ -25,15 +28,23 @@ public class AnalysisService {
 	private final PdfService pdfService;
 	private final GeminiService geminiService;
 	private final MatchScoreCalculator matchScoreCalculator;
+	private final int maxJobDescriptionLength;
 
+	public AnalysisService(PdfService pdfService, GeminiService geminiService, MatchScoreCalculator matchScoreCalculator) {
+		this(pdfService, geminiService, matchScoreCalculator, 5000);
+	}
+
+	@org.springframework.beans.factory.annotation.Autowired
 	public AnalysisService(
 			PdfService pdfService,
 			GeminiService geminiService,
-			MatchScoreCalculator matchScoreCalculator
+			MatchScoreCalculator matchScoreCalculator,
+			@org.springframework.beans.factory.annotation.Value("${analysis.max-description-length:5000}") int maxJobDescriptionLength
 	) {
 		this.pdfService = pdfService;
 		this.geminiService = geminiService;
 		this.matchScoreCalculator = matchScoreCalculator;
+		this.maxJobDescriptionLength = maxJobDescriptionLength;
 	}
 
 	public AnalysisResponse analyze(MultipartFile cvFile, String jobDescription, MultipartFile jobImage) {
@@ -69,8 +80,9 @@ public class AnalysisService {
 			throw new InvalidAnalysisRequestException("Proporciona la oferta laboral como texto o imagen, no ambas.");
 		}
 
-		if (hasJobDescription && jobDescription.length() > MAX_JOB_DESCRIPTION_LENGTH) {
-			throw new InvalidAnalysisRequestException("La descripcion de la oferta no puede superar los 15000 caracteres.");
+		if (hasJobDescription && jobDescription.length() > maxJobDescriptionLength) {
+			throw new InvalidAnalysisRequestException("La descripcion de la oferta no puede superar los "
+					+ maxJobDescriptionLength + " caracteres.");
 		}
 
 		if (hasJobImage) {
@@ -101,6 +113,15 @@ public class AnalysisService {
 
 		if (!hasAllowedContentType || !hasAllowedExtension) {
 			throw new InvalidAnalysisRequestException("La imagen de la oferta debe ser PNG, JPEG o WEBP.");
+		}
+
+		try {
+			BufferedImage image = ImageIO.read(jobImage.getInputStream());
+			if (image == null || image.getWidth() > MAX_JOB_IMAGE_DIMENSION || image.getHeight() > MAX_JOB_IMAGE_DIMENSION) {
+				throw new InvalidAnalysisRequestException("La imagen de la oferta no es válida o supera sus dimensiones máximas.");
+			}
+		} catch (IOException exception) {
+			throw new InvalidAnalysisRequestException("No se pudo leer la imagen de la oferta.");
 		}
 	}
 

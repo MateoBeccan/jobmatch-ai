@@ -2,15 +2,16 @@ package com.codercup.jobmatchai.controller;
 
 import com.codercup.jobmatchai.dto.AnalysisResponse;
 import com.codercup.jobmatchai.dto.AnalysisHistoryResponse;
+import com.codercup.jobmatchai.dto.AnalysisHistoryPageResponse;
 import com.codercup.jobmatchai.service.AnalysisService;
 import com.codercup.jobmatchai.service.AnalysisHistoryService;
-import java.util.List;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestPart;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -53,8 +54,11 @@ public class AnalysisController {
 	}
 
 	@GetMapping("/api/analyses")
-	public List<AnalysisHistoryResponse> getAnalyses() {
-		return analysisHistoryService.findAll();
+	public AnalysisHistoryPageResponse getAnalyses(
+			@RequestParam(defaultValue = "0") int page,
+			@RequestParam(defaultValue = "20") int size
+	) {
+		return analysisHistoryService.findPage(page, size);
 	}
 
 	@GetMapping("/api/analyses/{id}")
