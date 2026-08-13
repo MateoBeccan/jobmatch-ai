@@ -285,8 +285,8 @@ class GeminiServiceTest {
 		);
 
 		assertThatThrownBy(() -> geminiService.analyze("CV con Java", "Oferta con Java"))
-				.isInstanceOf(AiServiceUnavailableException.class)
-				.hasMessage("El servicio de inteligencia artificial no esta disponible temporalmente.");
+				.isInstanceOf(AnalysisConfigurationException.class)
+				.hasMessage("Gemini rechazo la solicitud. Revisa el modelo configurado y el formato enviado.");
 		assertThat(geminiService.attempts()).isEqualTo(1);
 	}
 

@@ -67,7 +67,7 @@ public class GeminiService {
 
 	public AnalysisResponse analyze(String cvText, String jobDescription) {
 		if (apiKey == null || apiKey.isBlank()) {
-			throw new AnalysisConfigurationException("El servicio de analisis no esta configurado correctamente.");
+			throw new AnalysisConfigurationException("Falta GEMINI_API_KEY. Agrega tu clave de Google AI Studio en el archivo .env y reinicia el backend.");
 		}
 
 		String responseText = generateContent(buildPrompt(cvText, jobDescription));
@@ -77,7 +77,7 @@ public class GeminiService {
 
 	public AnalysisResponse analyze(String cvText, MultipartFile jobImage) {
 		if (apiKey == null || apiKey.isBlank()) {
-			throw new AnalysisConfigurationException("El servicio de analisis no esta configurado correctamente.");
+			throw new AnalysisConfigurationException("Falta GEMINI_API_KEY. Agrega tu clave de Google AI Studio en el archivo .env y reinicia el backend.");
 		}
 
 		String responseText;
@@ -130,10 +130,21 @@ public class GeminiService {
 			}
 		}
 
-		throw new AiServiceUnavailableException(
-				"El servicio de inteligencia artificial no esta disponible temporalmente.",
-				lastApiException
-		);
+		throw mapGeminiApiException(lastApiException);
+	}
+
+	private RuntimeException mapGeminiApiException(ApiException exception) {
+		return switch (exception.code()) {
+			case 400 -> new AnalysisConfigurationException(
+					"Gemini rechazo la solicitud. Revisa el modelo configurado y el formato enviado.");
+			case 401, 403 -> new AnalysisConfigurationException(
+					"La clave de Gemini no es valida o no tiene permisos para usar la API.");
+			case 404 -> new AnalysisConfigurationException(
+					"El modelo de Gemini configurado no existe o no esta disponible para tu cuenta.");
+			default -> new AiServiceUnavailableException(
+					"El servicio de inteligencia artificial no esta disponible temporalmente.",
+					exception);
+		};
 	}
 
 	String generateContentOnce(GeminiContentCall contentCall) {

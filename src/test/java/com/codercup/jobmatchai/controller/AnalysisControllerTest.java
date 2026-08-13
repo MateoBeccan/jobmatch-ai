@@ -29,6 +29,7 @@ import com.codercup.jobmatchai.exception.AiServiceUnavailableException;
 import com.codercup.jobmatchai.exception.ApiExceptionHandler;
 import com.codercup.jobmatchai.exception.InvalidAiResponseException;
 import com.codercup.jobmatchai.service.AnalysisService;
+import com.codercup.jobmatchai.service.AnalysisHistoryService;
 import com.codercup.jobmatchai.service.GeminiService;
 import com.codercup.jobmatchai.service.PdfService;
 
@@ -36,6 +37,7 @@ import com.codercup.jobmatchai.service.PdfService;
 @Import({
 		AnalysisService.class,
 		PdfService.class,
+		AnalysisControllerTest.TestHistoryConfiguration.class,
 		ApiExceptionHandler.class,
 		AnalysisControllerTest.TestGeminiConfiguration.class
 })
@@ -569,6 +571,15 @@ class AnalysisControllerTest {
 					);
 				}
 			};
+		}
+	}
+
+	@TestConfiguration
+	static class TestHistoryConfiguration {
+
+		@Bean
+		AnalysisHistoryService analysisHistoryService() {
+			return org.mockito.Mockito.mock(AnalysisHistoryService.class);
 		}
 	}
 }

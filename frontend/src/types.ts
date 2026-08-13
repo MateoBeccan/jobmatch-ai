@@ -7,3 +7,16 @@ export type AnalysisResponse = {
 }
 
 export type AnalysisMode = 'text' | 'image'
+
+export type HistoryRecord = {
+  id: string
+  role: string
+  company: string
+  cvFileName: string
+  cvVersion: string
+  jobDescription: string
+  mode: AnalysisMode
+  score: number
+  createdAt: number
+  result: AnalysisResponse
+}
