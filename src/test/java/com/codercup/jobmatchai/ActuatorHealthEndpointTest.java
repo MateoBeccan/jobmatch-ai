@@ -4,7 +4,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.codercup.jobmatchai.dto.AnalysisResponse;
+import com.codercup.jobmatchai.dto.internal.GeminiAnalysisResult;
+import com.codercup.jobmatchai.scoring.RequirementAssessment;
+import com.codercup.jobmatchai.scoring.RequirementCategory;
+import com.codercup.jobmatchai.scoring.RequirementStatus;
 import com.codercup.jobmatchai.service.GeminiService;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -39,13 +42,28 @@ class ActuatorHealthEndpointTest {
 		GeminiService geminiService() {
 			return new GeminiService("test-key", "test-model", 30000, 2, 500) {
 				@Override
-				public AnalysisResponse analyze(String cvText, String jobDescription) {
-					return new AnalysisResponse(0, List.of(), List.of(), List.of(), List.of());
+				public GeminiAnalysisResult analyze(String cvText, String jobDescription) {
+					return emptyAnalysisResult();
 				}
 
 				@Override
-				public AnalysisResponse analyze(String cvText, MultipartFile jobImage) {
-					return new AnalysisResponse(0, List.of(), List.of(), List.of(), List.of());
+				public GeminiAnalysisResult analyze(String cvText, MultipartFile jobImage) {
+					return emptyAnalysisResult();
+				}
+
+				private GeminiAnalysisResult emptyAnalysisResult() {
+					return new GeminiAnalysisResult(
+							List.of(new RequirementAssessment(
+									"Java",
+									RequirementCategory.MANDATORY_TECHNICAL,
+									RequirementStatus.MISSING,
+									"Sin evidencia"
+							)),
+							List.of(),
+							List.of(),
+							List.of(),
+							List.of()
+					);
 				}
 			};
 		}

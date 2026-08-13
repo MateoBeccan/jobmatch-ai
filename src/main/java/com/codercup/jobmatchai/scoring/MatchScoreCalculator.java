@@ -3,7 +3,9 @@ package com.codercup.jobmatchai.scoring;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
+import org.springframework.stereotype.Component;
 
+@Component
 public class MatchScoreCalculator {
 
 	public MatchScoreResult calculate(List<RequirementAssessment> requirements) {
