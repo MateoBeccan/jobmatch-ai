@@ -1,13 +1,7 @@
-import type { AnalysisHistoryPage, AnalysisMode, AnalysisSummary, HistoryRecord } from '../lib/types/types'
+import type { AnalysisHistoryPage, AnalysisMode, AnalysisResponse, AnalysisSummary, HistoryRecord } from '../lib/types/types'
 
 const API_URL = (import.meta.env.VITE_API_URL ?? 'http://localhost:8080').replace(/\/$/, '')
-const API_USERNAME = import.meta.env.VITE_API_USERNAME ?? 'demo'
-const API_PASSWORD = import.meta.env.VITE_API_PASSWORD ?? 'demo-password'
 const REQUEST_TIMEOUT_MS = 35000
-
-function authorizationHeader() {
-  return `Basic ${btoa(`${API_USERNAME}:${API_PASSWORD}`)}`
-}
 
 type ApiErrorBody = { message?: unknown }
 
@@ -15,23 +9,26 @@ function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((item) => typeof item === 'string')
 }
 
+function normalizeAnalysisResponse(response: AnalysisResponse): AnalysisResponse {
+  if (!response || typeof response.matchPercentage !== 'number' || response.matchPercentage < 0 || response.matchPercentage > 100
+    || !isStringArray(response.matchingSkills)
+    || !isStringArray(response.missingSkills)
+    || !isStringArray(response.recommendations)
+    || !isStringArray(response.interviewQuestions)) {
+    throw new Error('El analisis devolvio un formato invalido.')
+  }
+
+  return response
+}
+
 function normalizeCreatedAt(value: string | number) {
   const timestamp = typeof value === 'string' ? new Date(value).getTime() : value
-  if (!Number.isFinite(timestamp)) throw new Error('La respuesta contiene una fecha inválida.')
+  if (!Number.isFinite(timestamp)) throw new Error('La respuesta contiene una fecha invalida.')
   return timestamp
 }
 
 function normalizeHistoryRecord(record: HistoryRecord & { createdAt: string | number }): HistoryRecord {
-  const result = record.result
-  if (!result || typeof result.matchPercentage !== 'number' || result.matchPercentage < 0 || result.matchPercentage > 100
-    || !isStringArray(result.matchingSkills)
-    || !isStringArray(result.missingSkills)
-    || !isStringArray(result.recommendations)
-    || !isStringArray(result.interviewQuestions)) {
-    throw new Error('El análisis devolvió un formato inválido.')
-  }
-
-  return { ...record, createdAt: normalizeCreatedAt(record.createdAt) }
+  return { ...record, result: normalizeAnalysisResponse(record.result), createdAt: normalizeCreatedAt(record.createdAt) }
 }
 
 async function request(path: string, init: RequestInit, connectionMessage: string, fallbackMessage: string) {
@@ -49,14 +46,13 @@ async function request(path: string, init: RequestInit, connectionMessage: strin
       ...init,
       signal: controller.signal,
       headers: {
-        Authorization: authorizationHeader(),
         Accept: 'application/json',
         ...init.headers,
       },
     })
   } catch (error) {
     if (error instanceof DOMException && error.name === 'AbortError' && timedOut) {
-      throw new Error('La solicitud tardó demasiado. Intenta nuevamente.')
+      throw new Error('La solicitud tardo demasiado. Intenta nuevamente.')
     }
     if (error instanceof DOMException && error.name === 'AbortError') throw error
     throw new Error(connectionMessage)
@@ -79,38 +75,47 @@ async function requestJson<T>(path: string, init: RequestInit, connectionMessage
   return response.json() as Promise<T>
 }
 
+export async function analyzeCV(
+  cvFile: File,
+  mode: AnalysisMode,
+  jobDescription: string,
+  jobImage: File | null,
+  signal?: AbortSignal,
+): Promise<AnalysisResponse> {
+  const formData = new FormData()
+  formData.append('cvFile', cvFile)
+  if (mode === 'text') formData.append('jobDescription', jobDescription)
+  else if (jobImage) formData.append('jobImage', jobImage)
+
+  const response = await requestJson<AnalysisResponse>(
+    '/api/analyze',
+    { method: 'POST', body: formData, signal },
+    `No se pudo conectar con el backend en ${API_URL}.`,
+    'No se pudo completar el analisis.',
+  )
+  return normalizeAnalysisResponse(response)
+}
+
 export async function createAnalysis(
   cvFile: File,
   mode: AnalysisMode,
   jobDescription: string,
   jobImage: File | null,
-  cvVersion = 'CV sin versión',
+  _cvVersion = 'CV sin version',
   signal?: AbortSignal,
-): Promise<HistoryRecord> {
-  const formData = new FormData()
-  formData.append('cvFile', cvFile)
-  formData.append('cvVersion', cvVersion)
-  if (mode === 'text') formData.append('jobDescription', jobDescription)
-  else if (jobImage) formData.append('jobImage', jobImage)
-
-  const response = await requestJson<HistoryRecord & { createdAt: string | number }>(
-    '/api/analyses',
-    { method: 'POST', body: formData, signal },
-    `No se pudo conectar con el backend en ${API_URL}.`,
-    'No se pudo guardar el análisis.',
-  )
-  return normalizeHistoryRecord(response)
+): Promise<AnalysisResponse> {
+  return analyzeCV(cvFile, mode, jobDescription, jobImage, signal)
 }
 
 export async function getAnalyses(page = 0, size = 20, signal?: AbortSignal): Promise<AnalysisHistoryPage> {
   const response = await requestJson<AnalysisHistoryPage & { content: Array<Omit<AnalysisSummary, 'createdAt'> & { createdAt: string | number }> }>(
     `/api/analyses?page=${page}&size=${size}`,
     { signal },
-    `No se pudo conectar con el historial en ${API_URL}. Comprueba que Spring Boot esté iniciado.`,
+    `No se pudo conectar con el historial en ${API_URL}. Comprueba que Spring Boot este iniciado.`,
     'No se pudo cargar el historial.',
   )
   if (!Array.isArray(response.content)) {
-    throw new Error('El historial devolvió un formato inválido.')
+    throw new Error('El historial devolvio un formato invalido.')
   }
 
   return {
@@ -126,8 +131,8 @@ export async function getAnalysis(id: string, signal?: AbortSignal): Promise<His
   const response = await requestJson<HistoryRecord & { createdAt: string | number }>(
     `/api/analyses/${encodeURIComponent(id)}`,
     { signal },
-    `No se pudo conectar con el análisis en ${API_URL}.`,
-    'No se pudo cargar el análisis.',
+    `No se pudo conectar con el analisis en ${API_URL}.`,
+    'No se pudo cargar el analisis.',
   )
   return normalizeHistoryRecord(response)
 }
@@ -137,6 +142,6 @@ export async function deleteAnalysis(id: string): Promise<void> {
     `/api/analyses/${encodeURIComponent(id)}`,
     { method: 'DELETE' },
     `No se pudo conectar con el backend en ${API_URL}.`,
-    'No se pudo eliminar el análisis.',
+    'No se pudo eliminar el analisis.',
   )
 }

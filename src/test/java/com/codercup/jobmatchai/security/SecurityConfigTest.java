@@ -1,6 +1,7 @@
 package com.codercup.jobmatchai.security;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -16,7 +17,8 @@ import org.springframework.test.web.servlet.MockMvc;
 @SpringBootTest(properties = {
 		"security.enabled=true",
 		"security.demo-username=demo",
-		"security.demo-password=demo-password"
+		"security.demo-password=demo-password",
+		"rate-limit.per-minute=10"
 })
 @AutoConfigureMockMvc
 class SecurityConfigTest {
@@ -28,6 +30,20 @@ class SecurityConfigTest {
 	void apiRequiresAuthentication() throws Exception {
 		mockMvc.perform(get("/api/analyses"))
 				.andExpect(status().isUnauthorized());
+	}
+
+	@Test
+	void analyzeIsPublicWithoutAuthentication() throws Exception {
+		mockMvc.perform(multipart("/api/analyze"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.message").value("El archivo del CV no puede estar vacio."));
+	}
+
+	@Test
+	void actuatorHealthIsPublicWithoutAuthentication() throws Exception {
+		mockMvc.perform(get("/actuator/health"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.status").value("UP"));
 	}
 
 	@Test

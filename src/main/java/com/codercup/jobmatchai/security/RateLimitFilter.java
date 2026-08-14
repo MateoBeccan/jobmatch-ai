@@ -10,6 +10,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
@@ -19,22 +20,18 @@ import org.springframework.web.filter.OncePerRequestFilter;
 public class RateLimitFilter extends OncePerRequestFilter {
 
 	private final int requestsPerMinute;
-	private final boolean securityEnabled;
 	private final Map<String, RequestWindow> windows = new ConcurrentHashMap<>();
 
-	public RateLimitFilter(@Value("${rate-limit.per-minute:10}") int requestsPerMinute,
-			@Value("${security.enabled:true}") boolean securityEnabled) {
+	public RateLimitFilter(@Value("${rate-limit.per-minute:10}") int requestsPerMinute) {
 		if (requestsPerMinute < 1) {
 			throw new IllegalArgumentException("El limite por minuto debe ser mayor a 0.");
 		}
 		this.requestsPerMinute = requestsPerMinute;
-		this.securityEnabled = securityEnabled;
 	}
 
 	@Override
 	protected boolean shouldNotFilter(HttpServletRequest request) {
-		return !securityEnabled
-				|| !"POST".equalsIgnoreCase(request.getMethod())
+		return !"POST".equalsIgnoreCase(request.getMethod())
 				|| !("/api/analyze".equals(request.getRequestURI())
 						|| "/api/analyses".equals(request.getRequestURI()));
 	}
@@ -64,7 +61,9 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
 	private String currentUserId(HttpServletRequest request) {
 		Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-		return authentication != null && authentication.isAuthenticated()
+		return authentication != null
+				&& authentication.isAuthenticated()
+				&& !(authentication instanceof AnonymousAuthenticationToken)
 				? authentication.getName()
 				: request.getRemoteAddr();
 	}

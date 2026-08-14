@@ -39,7 +39,7 @@ import com.codercup.jobmatchai.service.AnalysisHistoryService;
 import com.codercup.jobmatchai.service.GeminiService;
 import com.codercup.jobmatchai.service.PdfService;
 
-@WebMvcTest(AnalysisController.class)
+@WebMvcTest(value = AnalysisController.class, properties = "rate-limit.per-minute=100")
 @Import({
 		AnalysisService.class,
 		PdfService.class,
