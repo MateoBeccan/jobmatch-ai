@@ -17,7 +17,7 @@ public class AnalysisEntity {
 	@GeneratedValue(strategy = GenerationType.UUID)
 	private String id;
 
-	@Column(name = "owner_id", nullable = false, length = 120)
+	@Column(name = "owner_id", length = 120)
 	private String ownerId;
 
 	@Column(nullable = false, length = 160)

@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import type { AnalysisSummary, Theme } from '../types'
-import { formatHistoryDate, getScoreClass } from '../lib/format'
-import { ThemeToggle } from './ThemeToggle'
+import type { AnalysisSummary, Theme } from '../../lib/types/types'
+import { formatHistoryDate, getScoreClass } from '../../lib/helpers/format'
+import { ThemeToggle } from '../atoms/ThemeToggle'
 
 type HistoryScreenProps = {
   records: AnalysisSummary[]
@@ -42,7 +42,7 @@ export function HistoryScreen({ records, loading, hasMore, error, onRetry, onLoa
       {!loading && !error && <>
         <HistoryGroup title="Recientes" records={recent} allRecords={records} onOpen={onOpenRecord} onDelete={onDelete} emptyMessage={normalizedQuery ? 'No hay análisis recientes que coincidan con tu búsqueda.' : 'Tus análisis aparecerán aquí después de completar una evaluación.'} />
         <HistoryGroup title="Anteriores" records={older} allRecords={records} onOpen={onOpenRecord} onDelete={onDelete} emptyMessage={normalizedQuery ? 'No hay análisis anteriores que coincidan con tu búsqueda.' : 'Todavía no tienes análisis anteriores.'} older />
-        {hasMore && <button className="load-more-button" type="button" disabled={loading} onClick={onLoadMore}>Cargar más análisis</button>}
+        {hasMore && <button className="load-more-button mx-auto mt-7 block rounded-lg border border-[var(--line)] bg-[var(--card)] px-4 py-2.5 text-[13px] font-bold text-[var(--blue)] transition-colors hover:border-[var(--blue)] hover:bg-[var(--soft-blue)] disabled:cursor-wait disabled:opacity-65" type="button" disabled={loading} onClick={onLoadMore}>Cargar más análisis</button>}
       </>}
       <button className="new-analysis-button" type="button" onClick={onAnalyze}><span>+</span> Nueva evaluación</button>
     </main>

@@ -1,50 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
-import { createAnalysis, deleteAnalysis, getAnalyses, getAnalysis } from './api'
-import type { AnalysisMode, AnalysisResponse, AnalysisSummary, Theme } from './types'
-import { BottomNav } from './components/Results'
-import { HistoryScreen } from './components/HistoryScreen'
-import { LoadingScreen } from './components/LoadingScreen'
-import { Results } from './components/Results'
-import { ThemeToggle } from './components/ThemeToggle'
-
-const MAX_FILE_SIZE = 5 * 1024 * 1024
-const MAX_JOB_DESCRIPTION_LENGTH = 5000
-const THEME_STORAGE_KEY = 'jobmatch-theme'
-const PDF_TYPES = new Set(['application/pdf'])
-const IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp'])
-
-function getInitialTheme(): Theme {
-  let savedTheme: string | null = null
-  try {
-    savedTheme = window.localStorage.getItem(THEME_STORAGE_KEY)
-  } catch {
-    // Private browsing can deny access to localStorage. The system preference is still usable.
-  }
-
-  const theme = savedTheme === 'dark' || savedTheme === 'light'
-    ? savedTheme
-    : window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
-
-  return theme
-}
-
-function decodeRouteId(value: string) {
-  try {
-    return decodeURIComponent(value)
-  } catch {
-    return ''
-  }
-}
-
-function normalizeRoute(pathname: string) {
-  if (pathname === '/' || pathname === '/historial') return '/historial'
-  if (pathname === '/analizar') return '/analizar'
-  if (/^\/analisis\/[^/]+$/.test(pathname)) return pathname
-  return '/historial'
-}
+import { createAnalysis, deleteAnalysis, getAnalyses, getAnalysis } from '../services/api'
+import type { AnalysisMode, AnalysisResponse, AnalysisSummary } from '../lib/types/types'
+import { BottomNav, Results } from '../components/organisms/Results'
+import { HistoryScreen } from '../components/organisms/HistoryScreen'
+import { LoadingScreen } from '../components/molecules/LoadingScreen'
+import { ThemeToggle } from '../components/atoms/ThemeToggle'
+import { decodeRouteId, normalizeRoute } from '../routes/routes'
+import { IMAGE_TYPES, MAX_FILE_SIZE, MAX_JOB_DESCRIPTION_LENGTH, PDF_TYPES } from '../lib/constants/app'
+import { useTheme } from '../lib/hooks/useTheme'
 
 function App() {
-  const [theme, setTheme] = useState<Theme>(getInitialTheme)
+  const { theme, toggleTheme } = useTheme()
   const [route, setRoute] = useState(() => normalizeRoute(window.location.pathname))
   const [cvFile, setCvFile] = useState<File | null>(null)
   const [jobImage, setJobImage] = useState<File | null>(null)
@@ -63,20 +29,6 @@ function App() {
   const cvInputRef = useRef<HTMLInputElement>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)
   const analysisAbortRef = useRef<AbortController | null>(null)
-
-  useEffect(() => {
-    document.documentElement.dataset.theme = theme
-    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme === 'dark' ? '#0a1120' : '#f8f9ff')
-    try {
-      window.localStorage.setItem(THEME_STORAGE_KEY, theme)
-    } catch {
-      // The selected theme remains active for this session if storage is unavailable.
-    }
-  }, [theme])
-
-  function toggleTheme() {
-    setTheme((currentTheme) => currentTheme === 'dark' ? 'light' : 'dark')
-  }
 
   function navigate(nextRoute: string, replace = false) {
     const normalizedRoute = normalizeRoute(nextRoute)

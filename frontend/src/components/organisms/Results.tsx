@@ -1,5 +1,5 @@
-import type { AnalysisResponse } from '../types'
-import { getScoreClass } from '../lib/format'
+import type { AnalysisResponse } from '../../lib/types/types'
+import { getScoreClass } from '../../lib/helpers/format'
 
 type ResultsProps = {
   result: AnalysisResponse

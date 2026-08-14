@@ -76,7 +76,7 @@ public class ApiExceptionHandler {
 	@ExceptionHandler(Exception.class)
 	public ResponseEntity<ApiErrorResponse> handleUnexpectedException(Exception exception) {
 		LOGGER.error("Unexpected error while processing analysis request. Exception type: {}",
-				exception.getClass().getName());
+				exception.getClass().getName(), exception);
 		return ResponseEntity
 				.status(HttpStatus.INTERNAL_SERVER_ERROR)
 				.body(new ApiErrorResponse("Ocurrio un error interno al procesar la solicitud."));

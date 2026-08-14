@@ -54,4 +54,22 @@ npm run build --prefix frontend
 
 ## Producción
 
-Activa el perfil `prod` y configura `DATABASE_URL` con PostgreSQL, `DATABASE_USERNAME` y `DATABASE_PASSWORD`. Flyway ejecutará las migraciones y Hibernate validará el esquema. No versiones archivos de `data/`, claves, builds ni resultados locales. El contenedor espera recibir el puerto mediante `PORT`.
+### Supabase
+
+1. En Supabase abre `Connect` y elige `Session pooler` para obtener una conexión PostgreSQL.
+2. Convierte la URL a formato JDBC: `postgresql://...` pasa a `jdbc:postgresql://...`.
+3. Configura estas variables en el entorno del backend:
+
+```env
+SPRING_PROFILES_ACTIVE=supabase
+SUPABASE_DB_URL=jdbc:postgresql://aws-0-<region>.pooler.supabase.com:5432/postgres?sslmode=require
+SUPABASE_DB_USERNAME=postgres.<project-ref>
+SUPABASE_DB_PASSWORD=tu_password_de_supabase
+GEMINI_API_KEY=tu_clave
+DEMO_PASSWORD=una_clave_larga
+CORS_ALLOWED_ORIGINS=https://tu-frontend.example
+```
+
+El perfil `supabase` fuerza SSL, limita el pool de conexiones, usa UTC, ejecuta Flyway y valida el esquema con Hibernate. No uses el connection string directo de Supabase sin convertirlo a JDBC.
+
+No versiones archivos de `data/`, claves, builds ni resultados locales. El contenedor espera recibir el puerto mediante `PORT`.

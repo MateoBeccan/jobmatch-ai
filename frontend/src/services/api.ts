@@ -1,4 +1,4 @@
-import type { AnalysisHistoryPage, AnalysisMode, AnalysisSummary, HistoryRecord } from './types'
+import type { AnalysisHistoryPage, AnalysisMode, AnalysisSummary, HistoryRecord } from '../lib/types/types'
 
 const API_URL = (import.meta.env.VITE_API_URL ?? 'http://localhost:8080').replace(/\/$/, '')
 const API_USERNAME = import.meta.env.VITE_API_USERNAME ?? 'demo'

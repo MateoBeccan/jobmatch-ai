@@ -5,11 +5,11 @@ CREATE TABLE IF NOT EXISTS analyses (
     cv_version VARCHAR(120) NOT NULL,
     role VARCHAR(160) NOT NULL,
     company VARCHAR(120) NOT NULL,
-    job_description CLOB NOT NULL,
+    job_description TEXT NOT NULL,
     mode VARCHAR(16) NOT NULL,
     score INTEGER NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL,
-    result_json CLOB NOT NULL
+    result_json TEXT NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_analyses_owner_created_at ON analyses(owner_id, created_at DESC);
