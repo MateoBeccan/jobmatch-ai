@@ -59,14 +59,24 @@ function App() {
     if (!file) return
     const validationError = validateFile(file, 'cv')
     setError(validationError)
-    if (!validationError) setCvFile(file)
+    if (validationError) {
+      setCvFile(null)
+      if (cvInputRef.current) cvInputRef.current.value = ''
+      return
+    }
+    setCvFile(file)
   }
 
   function handleImageChange(file: File | undefined) {
     if (!file) return
     const validationError = validateFile(file, 'image')
     setError(validationError)
-    if (!validationError) setJobImage(file)
+    if (validationError) {
+      setJobImage(null)
+      if (imageInputRef.current) imageInputRef.current.value = ''
+      return
+    }
+    setJobImage(file)
   }
 
   function handleCvDrop(event: React.DragEvent<HTMLButtonElement>) {

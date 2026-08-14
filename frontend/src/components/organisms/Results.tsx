@@ -47,5 +47,5 @@ type BottomNavProps = {
 }
 
 export function BottomNav({ active, onAnalyze }: BottomNavProps) {
-  return <nav className="bottom-nav" aria-label="Navegación inferior"><button aria-current={active === 'analyze' ? 'page' : undefined} className={active === 'analyze' ? 'active' : ''} type="button" onClick={onAnalyze}><span aria-hidden="true">⊕</span>Inicio</button><button aria-current={active === 'results' ? 'page' : undefined} className={active === 'results' ? 'active' : ''} type="button" onClick={onAnalyze}><span aria-hidden="true">▥</span>Análisis</button></nav>
+  return <nav className="bottom-nav" aria-label="Navegación inferior"><button aria-current={active === 'analyze' ? 'page' : undefined} className={active === 'analyze' ? 'active' : ''} type="button" onClick={onAnalyze}><span aria-hidden="true">⊕</span>Inicio</button><button aria-current={active === 'results' ? 'page' : undefined} className={active === 'results' ? 'active' : ''} type="button" onClick={onAnalyze}><span aria-hidden="true">▥</span>{active === 'results' ? 'Nuevo análisis' : 'Análisis'}</button></nav>
 }

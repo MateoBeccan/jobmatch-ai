@@ -104,6 +104,21 @@ body,
   margin-left: 24px;
 }
 
+.results-card .score-row,
+.results-card .result-panel,
+.results-card .result-actions {
+  animation: view-enter .45s ease both;
+}
+
+.results-card .result-panel:nth-child(2) { animation-delay: .06s; }
+.results-card .result-panel:nth-child(3) { animation-delay: .12s; }
+.results-card .result-panel:nth-child(4) { animation-delay: .18s; }
+
+@keyframes view-enter {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 .score {
   display: flex;
   align-items: center;
@@ -569,6 +584,15 @@ html:root[data-theme='dark'] .results-card .result-grid .result-panel.questions 
     background: transparent;
   }
 
+  .page-shell {
+    padding-bottom: calc(93px + env(safe-area-inset-bottom));
+  }
+
+  .bottom-nav {
+    height: calc(72px + env(safe-area-inset-bottom));
+    padding-bottom: calc(5px + env(safe-area-inset-bottom));
+  }
+
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -588,4 +612,10 @@ html:root[data-theme='dark'] .results-card .result-grid .result-panel.questions 
   }
 
   .spinner { animation: none; }
+
+  .results-card .score-row,
+  .results-card .result-panel,
+  .results-card .result-actions {
+    animation: none;
+  }
 }

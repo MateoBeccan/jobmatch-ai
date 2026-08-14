@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://jobmatch-ai-ten.vercel.app/sitemap.xml
