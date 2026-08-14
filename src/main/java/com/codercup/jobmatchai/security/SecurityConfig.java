@@ -7,6 +7,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -28,21 +29,27 @@ public class SecurityConfig {
 			RateLimitFilter rateLimitFilter, @Value("${security.enabled:true}") boolean securityEnabled) throws Exception {
 		http
 				.cors(cors -> cors.configurationSource(corsConfigurationSource))
-				.csrf(csrf -> csrf.disable())
+				.csrf(AbstractHttpConfigurer::disable)
 				.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-				.httpBasic(basic -> { })
 				.exceptionHandling(exceptions -> exceptions
-						.authenticationEntryPoint((request, response, exception) -> writeError(response, 401, "Autenticación requerida."))
+						.authenticationEntryPoint((request, response, exception) -> writeError(response, 401, "Autenticacion requerida."))
 						.accessDeniedHandler((request, response, exception) -> writeError(response, 403, "No tienes permisos para acceder a este recurso.")))
 				.addFilterAfter(rateLimitFilter, BasicAuthenticationFilter.class);
+
+		if (securityEnabled) {
+			http.httpBasic(basic -> { });
+		} else {
+			http.httpBasic(AbstractHttpConfigurer::disable);
+		}
 
 		http.authorizeHttpRequests(authorize -> {
 			authorize.requestMatchers("/actuator/health").permitAll();
 			authorize.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll();
+			authorize.requestMatchers(HttpMethod.POST, "/api/analyze").permitAll();
 			if (securityEnabled) {
-				authorize.requestMatchers("/api/**").hasRole("USER");
+				authorize.requestMatchers("/api/analyses", "/api/analyses/**").hasRole("USER");
 			} else {
-				authorize.requestMatchers("/api/**").permitAll();
+				authorize.requestMatchers("/api/analyses", "/api/analyses/**").denyAll();
 			}
 			authorize.anyRequest().denyAll();
 		});

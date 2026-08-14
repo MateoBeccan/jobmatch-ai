@@ -4,10 +4,9 @@ import { getScoreClass } from '../../lib/helpers/format'
 type ResultsProps = {
   result: AnalysisResponse
   onReset: () => void
-  onHistory: () => void
 }
 
-export function Results({ result, onReset, onHistory }: ResultsProps) {
+export function Results({ result, onReset }: ResultsProps) {
   const scoreClass = getScoreClass(result.matchPercentage)
   const scoreTitle = result.matchPercentage >= 80 ? 'Un encaje muy prometedor' : result.matchPercentage >= 60 ? 'Un buen punto de partida' : 'Hay oportunidades para mejorar'
 
@@ -24,8 +23,8 @@ export function Results({ result, onReset, onHistory }: ResultsProps) {
         <ResultList title="Recomendaciones para tu postulación" items={result.recommendations} variant="neutral" numbered />
         <ResultList title="Posibles preguntas de entrevista" items={result.interviewQuestions} variant="neutral" questions />
       </div>
-      <div className="result-actions"><button type="button" className="primary-action" onClick={onReset}>Analizar otra oferta</button><button type="button" className="secondary-action" onClick={onHistory}>Volver al historial</button></div>
-      <BottomNav active="results" onHistory={onHistory} onAnalyze={onReset} />
+      <div className="result-actions"><button type="button" className="primary-action" onClick={onReset}>Analizar otra oferta</button></div>
+      <BottomNav active="results" onAnalyze={onReset} />
     </section>
   )
 }
@@ -43,11 +42,10 @@ function ResultList({ title, items, variant, numbered = false, questions = false
 }
 
 type BottomNavProps = {
-  active: 'history' | 'analyze' | 'results'
-  onHistory: () => void
+  active: 'analyze' | 'results'
   onAnalyze: () => void
 }
 
-export function BottomNav({ active, onHistory, onAnalyze }: BottomNavProps) {
-  return <nav className="bottom-nav" aria-label="Navegación inferior"><button aria-current={active === 'analyze' ? 'page' : undefined} className={active === 'analyze' ? 'active' : ''} type="button" onClick={onAnalyze}><span aria-hidden="true">⊕</span>Inicio</button><button aria-current={active === 'history' ? 'page' : undefined} className={active === 'history' ? 'active' : ''} type="button" onClick={onHistory}><span aria-hidden="true">◷</span>Historial</button><button aria-current={active === 'results' ? 'page' : undefined} className={active === 'results' ? 'active' : ''} type="button" onClick={onAnalyze}><span aria-hidden="true">▥</span>Análisis</button><button type="button" onClick={onHistory}><span aria-hidden="true">♙</span>Perfil</button></nav>
+export function BottomNav({ active, onAnalyze }: BottomNavProps) {
+  return <nav className="bottom-nav" aria-label="Navegación inferior"><button aria-current={active === 'analyze' ? 'page' : undefined} className={active === 'analyze' ? 'active' : ''} type="button" onClick={onAnalyze}><span aria-hidden="true">⊕</span>Inicio</button><button aria-current={active === 'results' ? 'page' : undefined} className={active === 'results' ? 'active' : ''} type="button" onClick={onAnalyze}><span aria-hidden="true">▥</span>Análisis</button></nav>
 }

@@ -1,8 +1,6 @@
 export function normalizeRoute(pathname: string) {
-  if (pathname === '/' || pathname === '/historial') return '/historial'
-  if (pathname === '/analizar') return '/analizar'
-  if (/^\/analisis\/[^/]+$/.test(pathname)) return pathname
-  return '/historial'
+  if (pathname === '/' || pathname === '/analizar') return '/analizar'
+  return '/analizar'
 }
 
 export function decodeRouteId(value: string) {
