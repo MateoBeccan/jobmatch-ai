@@ -12,15 +12,15 @@ export function Results({ result, onReset }: ResultsProps) {
 
   return (
     <section className="results-card" aria-live="polite">
-      <div className="results-heading"><div><span className="intro-kicker">RESULTADO DE TU ANALISIS</span><h1>Compatibilidad estimada</h1></div><button type="button" className="reset-button" onClick={onReset}>+ Nueva evaluacion</button></div>
+      <div className="results-heading"><div><span className="intro-kicker">RESULTADO DE TU ANÁLISIS</span><h1>Compatibilidad estimada</h1></div><button type="button" className="reset-button" onClick={onReset}>+ Nueva evaluación</button></div>
       <div className="score-row">
         <div className={`score ${scoreClass}`} role="img" aria-label={`${result.matchPercentage}% de compatibilidad`} style={{ '--score': result.matchPercentage } as React.CSSProperties}><div className="score-value"><strong>{result.matchPercentage}</strong><span>%</span></div><small>Compatibilidad</small></div>
-        <div className="score-summary"><span className="summary-label">LECTURA GENERAL</span><h2>{scoreTitle}</h2><p>Este porcentaje es una estimacion basada en la informacion de tu CV y los requisitos de la oferta.</p></div>
+        <div className="score-summary"><span className="summary-label">LECTURA GENERAL</span><h2>{scoreTitle}</h2><p>Este porcentaje es una estimación basada en la información de tu CV y los requisitos de la oferta.</p></div>
       </div>
       <div className="result-grid">
         <ResultList title="Habilidades que coinciden" items={result.matchingSkills} variant="positive" />
         <ResultList title="Habilidades o requisitos faltantes" items={result.missingSkills} variant="negative" />
-        <ResultList title="Recomendaciones para tu postulacion" items={result.recommendations} variant="neutral" numbered />
+        <ResultList title="Recomendaciones para tu postulación" items={result.recommendations} variant="neutral" numbered />
         <ResultList title="Posibles preguntas de entrevista" items={result.interviewQuestions} variant="neutral" questions />
       </div>
       <div className="result-actions"><button type="button" className="primary-action" onClick={onReset}>Analizar otra oferta</button></div>
@@ -47,5 +47,5 @@ type BottomNavProps = {
 }
 
 export function BottomNav({ active, onAnalyze }: BottomNavProps) {
-  return <nav className="bottom-nav" aria-label="Navegacion inferior"><button aria-current={active === 'analyze' ? 'page' : undefined} className={active === 'analyze' ? 'active' : ''} type="button" onClick={onAnalyze}><span aria-hidden="true">⊕</span>Inicio</button><button aria-current={active === 'results' ? 'page' : undefined} className={active === 'results' ? 'active' : ''} type="button" onClick={onAnalyze}><span aria-hidden="true">▥</span>Analisis</button></nav>
+  return <nav className="bottom-nav" aria-label="Navegación inferior"><button aria-current={active === 'analyze' ? 'page' : undefined} className={active === 'analyze' ? 'active' : ''} type="button" onClick={onAnalyze}><span aria-hidden="true">⊕</span>Inicio</button><button aria-current={active === 'results' ? 'page' : undefined} className={active === 'results' ? 'active' : ''} type="button" onClick={onAnalyze}><span aria-hidden="true">▥</span>Análisis</button></nav>
 }

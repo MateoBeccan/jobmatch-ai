@@ -96,7 +96,7 @@ function App() {
       return
     }
     if (mode === 'text' && !jobDescription.trim()) {
-      setError('Escribe la descripcion de la oferta laboral.')
+      setError('Escribe la descripción de la oferta laboral.')
       return
     }
     if (mode === 'image' && !jobImage) {
@@ -114,7 +114,7 @@ function App() {
       navigate('/analizar')
     } catch (requestError) {
       if (requestError instanceof DOMException && requestError.name === 'AbortError') return
-      setError(requestError instanceof Error ? requestError.message : 'No se pudo completar el analisis.')
+      setError(requestError instanceof Error ? requestError.message : 'No se pudo completar el análisis.')
     } finally {
       if (analysisAbortRef.current === controller) analysisAbortRef.current = null
       setIsLoading(false)
@@ -145,10 +145,10 @@ function App() {
   return (
     <main className={`page-shell ${result ? 'has-results' : ''}`}>
       <header className="app-header">
-        <button className="back-button" type="button" aria-label="Nueva evaluacion" onClick={resetForm}>←</button>
+        <button className="back-button" type="button" aria-label="Nueva evaluación" onClick={resetForm}>←</button>
         <button className="app-title" type="button" onClick={openAnalyzer}>CV Matcher</button>
         <div className="desktop-brand">JobMatch <b>AI</b></div>
-        <nav className="top-links" aria-label="Navegacion principal">
+        <nav className="top-links" aria-label="Navegación principal">
           <button className="active" type="button" aria-current="page">Analizar CV</button>
         </nav>
         <ThemeToggle theme={theme} onToggle={toggleTheme} />
@@ -157,8 +157,8 @@ function App() {
       {!result && (
         <section className="evaluation-intro" id="analizar">
           <span className="intro-kicker">CV Matcher</span>
-          <h1>Nueva Evaluacion</h1>
-          <p>Sube el curriculum del candidato y describe el perfil buscado para obtener un analisis detallado de compatibilidad impulsado por IA.</p>
+          <h1>Nueva Evaluación</h1>
+          <p>Sube el currículum del candidato y describe el perfil buscado para obtener un análisis detallado de compatibilidad impulsado por IA.</p>
         </section>
       )}
 
@@ -175,23 +175,23 @@ function App() {
           >
             <span className="upload-icon" aria-hidden="true">↥</span>
             <span className="dropzone-copy">
-              <strong>{cvFile ? cvFile.name : 'Arrastra y suelta el CV aqui'}</strong>
+              <strong>{cvFile ? cvFile.name : 'Arrastra y suelta el CV aquí'}</strong>
               <small>{cvFile ? `${(cvFile.size / 1024 / 1024).toFixed(2)} MB · PDF` : 'o haz clic para explorar tus archivos'}</small>
             </span>
-            <span className="browse-label">PDF · Max. 5 MB</span>
+            <span className="browse-label">PDF · Máx. 5 MB</span>
           </button>
           <input ref={cvInputRef} className="visually-hidden" type="file" accept="application/pdf,.pdf" aria-label="Seleccionar CV en PDF" onChange={(event) => handleCvChange(event.target.files?.[0])} />
         </section>
 
         <section className="form-card offer-card">
-          <div className="section-label-row"><span className="step-number">02</span><h2>Descripcion de la oferta</h2><span className="character-count" id="description-count">{mode === 'text' ? `${jobDescription.length} / ${MAX_JOB_DESCRIPTION_LENGTH}` : 'Imagen'}</span></div>
+          <div className="section-label-row"><span className="step-number">02</span><h2>Descripción de la oferta</h2><span className="character-count" id="description-count">{mode === 'text' ? `${jobDescription.length} / ${MAX_JOB_DESCRIPTION_LENGTH}` : 'Imagen'}</span></div>
           <div className="mode-switch" role="group" aria-label="Formato de la oferta">
             <button type="button" aria-pressed={mode === 'text'} className={mode === 'text' ? 'active' : ''} onClick={() => changeMode('text')}>Pegar texto</button>
             <button type="button" aria-pressed={mode === 'image'} className={mode === 'image' ? 'active' : ''} onClick={() => changeMode('image')}>Subir imagen</button>
           </div>
           {mode === 'text' ? (
             <div>
-              <textarea id="job-description" value={jobDescription} onChange={(event) => setJobDescription(event.target.value)} maxLength={MAX_JOB_DESCRIPTION_LENGTH} placeholder="Pega aqui la descripcion del puesto, responsabilidades, requisitos tecnicos y habilidades blandas necesarias..." aria-label="Descripcion de la oferta laboral" aria-describedby="description-count" />
+              <textarea id="job-description" value={jobDescription} onChange={(event) => setJobDescription(event.target.value)} maxLength={MAX_JOB_DESCRIPTION_LENGTH} placeholder="Pega aquí la descripción del puesto, responsabilidades, requisitos técnicos y habilidades blandas necesarias..." aria-label="Descripción de la oferta laboral" aria-describedby="description-count" />
             </div>
           ) : (
             <>
@@ -199,13 +199,13 @@ function App() {
                 <button className={`image-picker ${jobImage ? 'has-file' : ''}`} type="button" onClick={() => imageInputRef.current?.click()}>
                   <span className="image-icon" aria-hidden="true">▧</span>
                   <strong>{jobImage ? jobImage.name : 'Selecciona una captura de la oferta'}</strong>
-                  <small>PNG, JPEG o WEBP · Max. 5 MB</small>
+                  <small>PNG, JPEG o WEBP · Máx. 5 MB</small>
                 </button>
               </div>
               <input ref={imageInputRef} className="visually-hidden" type="file" accept="image/png,image/jpeg,image/webp" aria-label="Seleccionar imagen de la oferta" onChange={(event) => handleImageChange(event.target.files?.[0])} />
             </>
           )}
-          <div className="field-footer"><span>Solo se utiliza para este analisis.</span><span className="secure-label">⌁ Datos protegidos</span></div>
+          <div className="field-footer"><span>Solo se utiliza para este análisis.</span><span className="secure-label">⌁ Datos protegidos</span></div>
         </section>
 
         {error && <div id="form-error" className="alert" role="alert" aria-live="assertive"><span>!</span><p>{error}</p></div>}
@@ -213,7 +213,7 @@ function App() {
       </form>
 
       {result && <Results result={result} onReset={resetForm} />}
-      {!result && <p className="privacy-note"><span>✦</span> Tu CV se utiliza unicamente para realizar este analisis.</p>}
+      {!result && <p className="privacy-note"><span>✦</span> Tu CV se utiliza únicamente para realizar este análisis.</p>}
       {!result && <BottomNav active="analyze" onAnalyze={openAnalyzer} />}
     </main>
   )
