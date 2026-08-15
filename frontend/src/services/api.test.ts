@@ -71,6 +71,96 @@ describe('api', () => {
     expect(formData.get('jobImage')).toBeInstanceOf(File)
     expect(formData.get('jobDescription')).toBeNull()
   })
+
+  it('accepts null values in breakdown without throwing', async () => {
+    const response = {
+      ...analysisResponse,
+      breakdown: {
+        mandatoryTechnical: 83,
+        experienceSeniority: 75,
+        desirable: null,
+        complementary: null,
+      },
+    }
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(response)))
+
+    await expect(analyzeCV(
+      new File(['cv'], 'cv.pdf', { type: 'application/pdf' }),
+      'text',
+      'Java developer role',
+      null,
+    )).resolves.toMatchObject({
+      breakdown: {
+        mandatoryTechnical: 83,
+        experienceSeniority: 75,
+      },
+    })
+  })
+
+  it('omits null categories from normalized breakdown', async () => {
+    const response = {
+      ...analysisResponse,
+      breakdown: {
+        mandatoryTechnical: 83,
+        experienceSeniority: null,
+        desirable: 50,
+        complementary: null,
+      },
+    }
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(response)))
+
+    const result = await analyzeCV(
+      new File(['cv'], 'cv.pdf', { type: 'application/pdf' }),
+      'text',
+      'Java developer role',
+      null,
+    )
+
+    expect(result.breakdown).toEqual({
+      mandatoryTechnical: 83,
+      desirable: 50,
+    })
+  })
+
+  it('normalizes null requirement evidence to undefined', async () => {
+    const response = {
+      ...analysisResponse,
+      requirements: [
+        { name: 'Java', status: 'match', evidence: null },
+      ],
+    }
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(response)))
+
+    const result = await analyzeCV(
+      new File(['cv'], 'cv.pdf', { type: 'application/pdf' }),
+      'text',
+      'Java developer role',
+      null,
+    )
+
+    expect(result.requirements?.[0]).toEqual({
+      name: 'Java',
+      status: 'match',
+      evidence: undefined,
+    })
+  })
+
+  it('rejects invalid breakdown value types', async () => {
+    const response = {
+      ...analysisResponse,
+      breakdown: {
+        mandatoryTechnical: '83',
+      },
+    }
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(response)))
+
+    await expect(analyzeCV(
+      new File(['cv'], 'cv.pdf', { type: 'application/pdf' }),
+      'text',
+      'Java developer role',
+      null,
+    )).rejects.toThrow(/desglose de puntaje/)
+  })
 })
 
 function jsonResponse(body: unknown) {
