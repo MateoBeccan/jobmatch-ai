@@ -1,9 +1,9 @@
 import { getMockEnabled, mockAnalysisResponse } from '../lib/mocks/analysisMock'
+import { deleteHistoryRecord, getHistory, getHistoryRecord, saveHistoryRecord } from '../lib/storage/historyStorage'
 import type {
   AnalysisHistoryPage,
   AnalysisMode,
   AnalysisResponse,
-  AnalysisSummary,
   HistoryRecord,
   RequirementMatch,
   RequirementStatus,
@@ -104,6 +104,32 @@ function firstLine(value: string) {
   return line || 'Nueva oferta'
 }
 
+function createLocalId() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID()
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`
+}
+
+function buildHistoryRecord(
+  cvFile: File,
+  mode: AnalysisMode,
+  jobDescription: string,
+  cvVersion: string,
+  result: AnalysisResponse,
+): HistoryRecord {
+  return {
+    id: createLocalId(),
+    role: mode === 'text' ? firstLine(jobDescription) : 'Oferta desde imagen',
+    company: 'Oferta laboral',
+    cvFileName: cvFile.name,
+    cvVersion,
+    mode,
+    score: result.matchPercentage,
+    createdAt: Date.now(),
+    jobDescription: mode === 'text' ? jobDescription : '',
+    result,
+  }
+}
+
 async function request(path: string, init: RequestInit, connectionMessage: string, fallbackMessage: string) {
   let response: Response
   const controller = new AbortController()
@@ -184,82 +210,45 @@ export async function createAnalysis(
 ): Promise<HistoryRecord> {
   if (getMockEnabled()) {
     await mockDelay()
-    return {
-      id: `mock-${Date.now()}`,
-      role: firstLine(jobDescription),
-      company: 'Oferta laboral',
-      cvFileName: cvFile.name,
-      cvVersion,
-      mode,
-      score: mockAnalysisResponse.matchPercentage,
-      createdAt: Date.now(),
-      jobDescription,
-      result: mockAnalysisResponse,
-    }
+    return saveHistoryRecord(buildHistoryRecord(cvFile, mode, jobDescription, cvVersion, mockAnalysisResponse))
   }
 
   const formData = new FormData()
   formData.append('cvFile', cvFile)
   if (mode === 'text') formData.append('jobDescription', jobDescription)
   else if (jobImage) formData.append('jobImage', jobImage)
-  formData.append('cvVersion', cvVersion)
 
-  const response = await requestJson<HistoryRecord & { createdAt: string | number }>(
-    '/api/analyses',
+  const response = await requestJson<AnalysisResponse>(
+    '/api/analyze',
     { method: 'POST', body: formData, signal },
     `No se pudo conectar con el backend en ${API_URL}.`,
     'No se pudo completar el análisis.',
   )
-  return normalizeHistoryRecord(response)
+  const result = normalizeAnalysisResponse(response)
+  return saveHistoryRecord(buildHistoryRecord(cvFile, mode, jobDescription, cvVersion, result))
 }
 
 export async function getAnalyses(page = 0, size = 20, signal?: AbortSignal): Promise<AnalysisHistoryPage> {
-  if (getMockEnabled()) {
-    await mockDelay(250)
-    return { content: [], page: 0, size, totalElements: 0, totalPages: 0 }
-  }
-
-  const response = await requestJson<AnalysisHistoryPage & { content: Array<Omit<AnalysisSummary, 'createdAt'> & { createdAt: string | number }> }>(
-    `/api/analyses?page=${page}&size=${size}`,
-    { signal },
-    `No se pudo conectar con el historial en ${API_URL}. Comprueba que Spring Boot esté iniciado.`,
-    'No se pudo cargar el historial.',
-  )
-  if (!Array.isArray(response.content)) {
-    throw new Error('El historial devolvió un formato inválido.')
-  }
-
+  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
+  const records = getHistory()
+  const start = page * size
+  const content = records.slice(start, start + size).map(({ jobDescription, result, ...summary }) => summary)
   return {
-    ...response,
-    content: response.content.map((record) => ({
-      ...record,
-      createdAt: normalizeCreatedAt(record.createdAt),
-    })),
+    content,
+    page,
+    size,
+    totalElements: records.length,
+    totalPages: Math.ceil(records.length / size),
   }
 }
 
 export async function getAnalysis(id: string, signal?: AbortSignal): Promise<HistoryRecord> {
-  if (getMockEnabled()) {
-    await mockDelay(250)
-    throw new Error('No hay registros de historial en modo de datos de prueba.')
-  }
-
-  const response = await requestJson<HistoryRecord & { createdAt: string | number }>(
-    `/api/analyses/${encodeURIComponent(id)}`,
-    { signal },
-    `No se pudo conectar con el análisis en ${API_URL}.`,
-    'No se pudo cargar el análisis.',
-  )
-  return normalizeHistoryRecord(response)
+  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
+  const record = getHistoryRecord(id)
+  if (!record) throw new Error('No se encontró el análisis.')
+  return normalizeHistoryRecord(record)
 }
 
 export async function deleteAnalysis(id: string): Promise<void> {
-  if (getMockEnabled()) return
-
-  await request(
-    `/api/analyses/${encodeURIComponent(id)}`,
-    { method: 'DELETE' },
-    `No se pudo conectar con el backend en ${API_URL}.`,
-    'No se pudo eliminar el análisis.',
-  )
+  deleteHistoryRecord(id)
 }
