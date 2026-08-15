@@ -32,12 +32,12 @@ function normalizeRequirements(value: unknown): RequirementMatch[] | undefined {
     const record = item as Record<string, unknown>
     return typeof record.name === 'string'
       && isRequirementStatus(record.status)
-      && (record.evidence === undefined || typeof record.evidence === 'string')
+      && (record.evidence === undefined || record.evidence === null || typeof record.evidence === 'string')
   })
   if (!valid) throw new Error('El análisis devolvió requisitos con un formato inválido.')
 
-  return (value as Array<{ name: string; status: RequirementStatus; evidence?: string }>)
-    .map(({ name, status, evidence }) => ({ name, status, evidence }))
+  return (value as Array<{ name: string; status: RequirementStatus; evidence?: string | null }>)
+    .map(({ name, status, evidence }) => ({ name, status, evidence: evidence ?? undefined }))
 }
 
 function normalizeBreakdown(value: unknown): ScoreBreakdown | undefined {
@@ -47,7 +47,7 @@ function normalizeBreakdown(value: unknown): ScoreBreakdown | undefined {
   }
   const record = value as Record<string, unknown>
   const keys = ['mandatoryTechnical', 'experienceSeniority', 'desirable', 'complementary'] as const
-  const anyInvalid = keys.some((key) => record[key] !== undefined && typeof record[key] !== 'number')
+  const anyInvalid = keys.some((key) => record[key] !== undefined && record[key] !== null && typeof record[key] !== 'number')
   if (anyInvalid) throw new Error('El análisis devolvió un desglose de puntaje inválido.')
 
   return keys.reduce((breakdown, key) => {
