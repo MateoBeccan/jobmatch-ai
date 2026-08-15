@@ -61,11 +61,18 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
 	private String currentUserId(HttpServletRequest request) {
 		Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-		return authentication != null
+		if (authentication != null
 				&& authentication.isAuthenticated()
-				&& !(authentication instanceof AnonymousAuthenticationToken)
-				? authentication.getName()
-				: request.getRemoteAddr();
+				&& !(authentication instanceof AnonymousAuthenticationToken)) {
+			return authentication.getName();
+		}
+
+		String clientIp = request.getHeader("CF-Connecting-IP");
+		if (clientIp != null && !clientIp.isBlank()) {
+			return clientIp.trim();
+		}
+
+		return request.getRemoteAddr();
 	}
 
 	private static final class RequestWindow {
