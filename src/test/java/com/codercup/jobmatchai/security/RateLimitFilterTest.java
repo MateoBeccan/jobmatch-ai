@@ -1,34 +1,153 @@
 package com.codercup.jobmatchai.security;
 
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.assertj.core.api.Assertions.assertThat;
 
+import jakarta.servlet.ServletException;
+import java.io.IOException;
+import java.util.List;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.http.HttpStatus;
+import org.springframework.mock.web.MockFilterChain;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 
-@SpringBootTest(properties = {
-		"security.enabled=true",
-		"security.demo-username=demo",
-		"security.demo-password=demo-password",
-		"rate-limit.per-minute=1"
-})
-@AutoConfigureMockMvc
 class RateLimitFilterTest {
 
-	@Autowired
-	private MockMvc mockMvc;
+	private static final int REQUESTS_PER_MINUTE = 10;
+	private final RateLimitFilter filter = new RateLimitFilter(REQUESTS_PER_MINUTE);
+
+	@AfterEach
+	void clearSecurityContext() {
+		SecurityContextHolder.clearContext();
+	}
 
 	@Test
-	void publicAnalyzeEndpointIsStillRateLimitedWithoutAuthentication() throws Exception {
-		mockMvc.perform(multipart("/api/analyze"))
-				.andExpect(status().isBadRequest());
+	void authenticatedUserIsIdentifiedByUsername() throws Exception {
+		authenticateAs("demo");
 
-		mockMvc.perform(multipart("/api/analyze"))
-				.andExpect(status().isTooManyRequests())
-				.andExpect(jsonPath("$.message").value("Se supero el limite de analisis por minuto."));
+		for (int index = 0; index < REQUESTS_PER_MINUTE; index++) {
+			MockHttpServletResponse response = performAnalyzeRequest("10.0.0." + index, null);
+			assertThat(response.getStatus()).isEqualTo(HttpStatus.OK.value());
+		}
+
+		MockHttpServletResponse response = performAnalyzeRequest("10.0.0.99", null);
+
+		assertTooManyRequests(response);
+	}
+
+	@Test
+	void anonymousUserWithCfConnectingIpIsIdentifiedByHeader() throws Exception {
+		authenticateAnonymously();
+
+		for (int index = 0; index < REQUESTS_PER_MINUTE; index++) {
+			MockHttpServletResponse response = performAnalyzeRequest("10.0.0." + index, "203.0.113.10");
+			assertThat(response.getStatus()).isEqualTo(HttpStatus.OK.value());
+		}
+
+		MockHttpServletResponse response = performAnalyzeRequest("10.0.0.99", "203.0.113.10");
+
+		assertTooManyRequests(response);
+	}
+
+	@Test
+	void cfConnectingIpIsTrimmedForAnonymousUsers() throws Exception {
+		authenticateAnonymously();
+
+		for (int index = 0; index < REQUESTS_PER_MINUTE; index++) {
+			MockHttpServletResponse response = performAnalyzeRequest("10.0.0." + index, " 203.0.113.10 ");
+			assertThat(response.getStatus()).isEqualTo(HttpStatus.OK.value());
+		}
+
+		MockHttpServletResponse response = performAnalyzeRequest("10.0.0.99", "203.0.113.10");
+
+		assertTooManyRequests(response);
+	}
+
+	@Test
+	void anonymousUserWithoutCfConnectingIpFallsBackToRemoteAddr() throws Exception {
+		authenticateAnonymously();
+
+		for (int index = 0; index < REQUESTS_PER_MINUTE; index++) {
+			MockHttpServletResponse response = performAnalyzeRequest("198.51.100.25", null);
+			assertThat(response.getStatus()).isEqualTo(HttpStatus.OK.value());
+		}
+
+		MockHttpServletResponse response = performAnalyzeRequest("198.51.100.25", null);
+
+		assertTooManyRequests(response);
+	}
+
+	@Test
+	void tenRequestsFromSameIpAreAllowedAndEleventhIsRejected() throws Exception {
+		authenticateAnonymously();
+
+		for (int index = 0; index < REQUESTS_PER_MINUTE; index++) {
+			MockHttpServletResponse response = performAnalyzeRequest("198.51.100.25", "203.0.113.10");
+			assertThat(response.getStatus()).isEqualTo(HttpStatus.OK.value());
+		}
+
+		MockHttpServletResponse response = performAnalyzeRequest("198.51.100.25", "203.0.113.10");
+
+		assertTooManyRequests(response);
+	}
+
+	@Test
+	void differentIpHasIndependentCounter() throws Exception {
+		authenticateAnonymously();
+
+		for (int index = 0; index < REQUESTS_PER_MINUTE; index++) {
+			MockHttpServletResponse response = performAnalyzeRequest("198.51.100.25", "203.0.113.10");
+			assertThat(response.getStatus()).isEqualTo(HttpStatus.OK.value());
+		}
+
+		MockHttpServletResponse response = performAnalyzeRequest("198.51.100.25", "203.0.113.11");
+
+		assertThat(response.getStatus()).isEqualTo(HttpStatus.OK.value());
+	}
+
+	@Test
+	void tooManyRequestsResponseIncludesRetryAfterAndMessage() throws Exception {
+		authenticateAnonymously();
+
+		for (int index = 0; index < REQUESTS_PER_MINUTE; index++) {
+			performAnalyzeRequest("198.51.100.25", "203.0.113.10");
+		}
+
+		MockHttpServletResponse response = performAnalyzeRequest("198.51.100.25", "203.0.113.10");
+
+		assertTooManyRequests(response);
+	}
+
+	private MockHttpServletResponse performAnalyzeRequest(String remoteAddr, String cfConnectingIp)
+			throws ServletException, IOException {
+		MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/analyze");
+		request.setRemoteAddr(remoteAddr);
+		if (cfConnectingIp != null) {
+			request.addHeader("CF-Connecting-IP", cfConnectingIp);
+		}
+		MockHttpServletResponse response = new MockHttpServletResponse();
+		filter.doFilter(request, response, new MockFilterChain());
+		return response;
+	}
+
+	private void authenticateAs(String username) {
+		SecurityContextHolder.getContext().setAuthentication(
+				new UsernamePasswordAuthenticationToken(username, "password", List.of(new SimpleGrantedAuthority("ROLE_USER"))));
+	}
+
+	private void authenticateAnonymously() {
+		SecurityContextHolder.getContext().setAuthentication(
+				new AnonymousAuthenticationToken("key", "anonymousUser", List.of(new SimpleGrantedAuthority("ROLE_ANONYMOUS"))));
+	}
+
+	private void assertTooManyRequests(MockHttpServletResponse response) throws Exception {
+		assertThat(response.getStatus()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS.value());
+		assertThat(response.getHeader("Retry-After")).isEqualTo("60");
+		assertThat(response.getContentAsString()).contains("Se supero el limite de analisis por minuto.");
 	}
 }
