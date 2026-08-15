@@ -1,8 +1,14 @@
 import { useEffect, useState } from 'react'
+import { AnalysisStepper, ANALYSIS_STEPS } from './AnalysisStepper'
 
-const LOADING_STEPS = ['Extrayendo experiencia', 'Mapeando competencias', 'Calculando JobMatch']
-const LOADING_MESSAGES = ['Leyendo tu CV...', 'Conectando tus habilidades...', 'Preparando tu resultado...']
-const LOADING_PROGRESS = [28, 62, 90]
+const LOADING_STEPS = ['Leyendo CV', 'Extrayendo habilidades', 'Comparando requisitos', 'Generando recomendaciones']
+const LOADING_MESSAGES = [
+  'Leyendo tu CV...',
+  'Extrayendo tus habilidades...',
+  'Comparando tus habilidades con la oferta...',
+  'Preparando recomendaciones...',
+]
+const LOADING_PROGRESS = [22, 46, 72, 92]
 
 export function LoadingScreen() {
   const [activeStep, setActiveStep] = useState(0)
@@ -11,7 +17,7 @@ export function LoadingScreen() {
   useEffect(() => {
     const timer = window.setInterval(() => {
       setActiveStep((currentStep) => Math.min(currentStep + 1, LOADING_STEPS.length - 1))
-    }, 1800)
+    }, 1900)
 
     return () => window.clearInterval(timer)
   }, [])
@@ -36,6 +42,7 @@ export function LoadingScreen() {
           <span className="loading-pulse pulse-two" />
           <span className="loading-pulse pulse-three" />
         </div>
+        <AnalysisStepper steps={ANALYSIS_STEPS} current="analysis" />
         <p className="loading-kicker">ANÁLISIS EN CURSO</p>
         <h1>{LOADING_MESSAGES[activeStep]}</h1>
         <p className="loading-copy">Nuestra IA está comparando tus habilidades con los requisitos de la oferta.</p>

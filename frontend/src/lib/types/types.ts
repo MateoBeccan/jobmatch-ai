@@ -1,13 +1,58 @@
+export type AnalysisMode = 'text' | 'image'
+export type Theme = 'light' | 'dark'
+
+export type RequirementStatus = 'match' | 'partial' | 'missing'
+
+export type RequirementMatch = {
+  name: string
+  status: RequirementStatus
+  evidence?: string
+}
+
+export type ScoreBreakdown = {
+  mandatoryTechnical?: number
+  experienceSeniority?: number
+  desirable?: number
+  complementary?: number
+}
+
+export type ScoreFactorType = 'positive' | 'partial' | 'missing'
+
+export type ScoreFactor = {
+  type: ScoreFactorType
+  text: string
+}
+
+export type ScoreExplanation = {
+  summary: string
+  factors: ScoreFactor[]
+}
+
+export type Recommendation = {
+  problem: string
+  explanation?: string
+  action?: string
+}
+
+export type CvSuggestionType = 'skill' | 'wording' | 'structure'
+
+export type CvSuggestion = {
+  id: string
+  type: CvSuggestionType
+  title: string
+  detail: string
+  action: string
+}
+
 export type AnalysisResponse = {
   matchPercentage: number
   matchingSkills: string[]
   missingSkills: string[]
   recommendations: string[]
   interviewQuestions: string[]
+  requirements?: RequirementMatch[]
+  breakdown?: ScoreBreakdown
 }
-
-export type AnalysisMode = 'text' | 'image'
-export type Theme = 'light' | 'dark'
 
 export type AnalysisSummary = {
   id: string
@@ -31,4 +76,27 @@ export type AnalysisHistoryPage = {
 export type HistoryRecord = AnalysisSummary & {
   jobDescription: string
   result: AnalysisResponse
+}
+
+export type ScoreRange = 'all' | 'top' | 'mid' | 'low'
+export type HistorySort = 'date-desc' | 'date-asc' | 'score-desc' | 'score-asc'
+
+export type HistoryStats = {
+  total: number
+  averageScore: number
+  bestScore: number
+  trendDelta?: number
+}
+
+export type AnalysisComparison = {
+  role: string
+  company: string
+  previousCvVersion: string
+  currentCvVersion: string
+  previousScore: number
+  currentScore: number
+  difference: number
+  newMatches: string[]
+  stillMissing: string[]
+  notes: string[]
 }

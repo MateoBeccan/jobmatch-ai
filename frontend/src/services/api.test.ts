@@ -7,6 +7,10 @@ const analysisResponse = {
   missingSkills: ['Docker'],
   recommendations: ['Practicar Docker'],
   interviewQuestions: ['Como disenarias una API REST?'],
+  requirements: [
+    { name: 'Java', status: 'match' },
+    { name: 'Docker', status: 'missing' },
+  ],
 }
 
 describe('api', () => {

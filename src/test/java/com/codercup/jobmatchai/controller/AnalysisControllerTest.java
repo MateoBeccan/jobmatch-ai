@@ -96,9 +96,14 @@ class AnalysisControllerTest {
 				.andExpect(jsonPath("$.missingSkills[0]").value("Docker"))
 				.andExpect(jsonPath("$.recommendations[0]").value("Aprender fundamentos de Docker"))
 				.andExpect(jsonPath("$.interviewQuestions[0]").value("Como crearias una API REST?"))
-				.andExpect(jsonPath("$.requirements").doesNotExist())
-				.andExpect(jsonPath("$.scoreBreakdown").doesNotExist())
-				.andExpect(jsonPath("$.partialMatches").doesNotExist());
+				.andExpect(jsonPath("$.requirements").isArray())
+				.andExpect(jsonPath("$.requirements.length()").value(3))
+				.andExpect(jsonPath("$.requirements[0].name").value("Java"))
+				.andExpect(jsonPath("$.requirements[0].status").value("match"))
+				.andExpect(jsonPath("$.requirements[2].name").value("Docker"))
+				.andExpect(jsonPath("$.requirements[2].status").value("partial"))
+				.andExpect(jsonPath("$.breakdown.mandatoryTechnical").value(83))
+				.andExpect(jsonPath("$.breakdown.experienceSeniority").doesNotExist());
 	}
 
 	@Test

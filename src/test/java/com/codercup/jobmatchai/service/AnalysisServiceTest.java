@@ -38,6 +38,11 @@ class AnalysisServiceTest {
 				"Como usaste Spring Boot?",
 				"Que experiencia tenes con Docker?"
 		);
+		assertThat(response.requirements()).extracting("name")
+				.containsExactly("Java", "Spring Boot", "SQL", "TypeScript", "5 anos de experiencia", "Docker", "AWS", "Git");
+		assertThat(response.requirements()).extracting("status")
+				.containsExactly("match", "match", "match", "missing", "missing", "match", "missing", "match");
+		assertThat(response.breakdown()).isNotNull();
 	}
 
 	@Test

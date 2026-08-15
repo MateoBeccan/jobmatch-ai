@@ -1,4 +1,14 @@
-import type { AnalysisHistoryPage, AnalysisMode, AnalysisResponse, AnalysisSummary, HistoryRecord } from '../lib/types/types'
+import { getMockEnabled, mockAnalysisResponse } from '../lib/mocks/analysisMock'
+import type {
+  AnalysisHistoryPage,
+  AnalysisMode,
+  AnalysisResponse,
+  AnalysisSummary,
+  HistoryRecord,
+  RequirementMatch,
+  RequirementStatus,
+  ScoreBreakdown,
+} from '../lib/types/types'
 
 const API_URL = (import.meta.env.VITE_API_URL ?? 'http://localhost:8080').replace(/\/$/, '')
 const REQUEST_TIMEOUT_MS = 150000
@@ -7,6 +17,52 @@ type ApiErrorBody = { message?: unknown }
 
 function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((item) => typeof item === 'string')
+}
+
+function isRequirementStatus(value: unknown): value is RequirementStatus {
+  return value === 'match' || value === 'partial' || value === 'missing'
+}
+
+function normalizeRequirements(value: unknown): RequirementMatch[] | undefined {
+  if (value === undefined || value === null) return undefined
+  if (!Array.isArray(value)) throw new Error('El análisis devolvió requisitos con un formato inválido.')
+
+  const valid = value.every((item) => {
+    if (!item || typeof item !== 'object') return false
+    const record = item as Record<string, unknown>
+    return typeof record.name === 'string'
+      && isRequirementStatus(record.status)
+      && (record.evidence === undefined || typeof record.evidence === 'string')
+  })
+  if (!valid) throw new Error('El análisis devolvió requisitos con un formato inválido.')
+
+  return (value as Array<{ name: string; status: RequirementStatus; evidence?: string }>)
+    .map(({ name, status, evidence }) => ({ name, status, evidence }))
+}
+
+function normalizeBreakdown(value: unknown): ScoreBreakdown | undefined {
+  if (value === undefined || value === null) return undefined
+  if (typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error('El análisis devolvió un desglose de puntaje inválido.')
+  }
+  const record = value as Record<string, unknown>
+  const keys = ['mandatoryTechnical', 'experienceSeniority', 'desirable', 'complementary'] as const
+  const anyInvalid = keys.some((key) => record[key] !== undefined && typeof record[key] !== 'number')
+  if (anyInvalid) throw new Error('El análisis devolvió un desglose de puntaje inválido.')
+
+  return keys.reduce((breakdown, key) => {
+    if (typeof record[key] === 'number') breakdown[key] = record[key] as number
+    return breakdown
+  }, {} as ScoreBreakdown)
+}
+
+function withDerivedRequirements(response: AnalysisResponse): AnalysisResponse {
+  if (response.requirements) return response
+  const requirements: RequirementMatch[] = [
+    ...response.matchingSkills.map((name) => ({ name, status: 'match' as const })),
+    ...response.missingSkills.map((name) => ({ name, status: 'missing' as const })),
+  ]
+  return { ...response, requirements }
 }
 
 function normalizeAnalysisResponse(response: AnalysisResponse): AnalysisResponse {
@@ -18,7 +74,11 @@ function normalizeAnalysisResponse(response: AnalysisResponse): AnalysisResponse
     throw new Error('El análisis devolvió un formato inválido.')
   }
 
-  return response
+  return withDerivedRequirements({
+    ...response,
+    requirements: normalizeRequirements(response.requirements),
+    breakdown: normalizeBreakdown(response.breakdown),
+  })
 }
 
 function normalizeCreatedAt(value: string | number) {
@@ -28,7 +88,20 @@ function normalizeCreatedAt(value: string | number) {
 }
 
 function normalizeHistoryRecord(record: HistoryRecord & { createdAt: string | number }): HistoryRecord {
-  return { ...record, result: normalizeAnalysisResponse(record.result), createdAt: normalizeCreatedAt(record.createdAt) }
+  return {
+    ...record,
+    result: normalizeAnalysisResponse(record.result),
+    createdAt: normalizeCreatedAt(record.createdAt),
+  }
+}
+
+async function mockDelay(ms = 900) {
+  await new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+function firstLine(value: string) {
+  const line = value.trim().split('\n')[0]?.trim()
+  return line || 'Nueva oferta'
 }
 
 async function request(path: string, init: RequestInit, connectionMessage: string, fallbackMessage: string) {
@@ -82,6 +155,11 @@ export async function analyzeCV(
   jobImage: File | null,
   signal?: AbortSignal,
 ): Promise<AnalysisResponse> {
+  if (getMockEnabled()) {
+    await mockDelay()
+    return mockAnalysisResponse
+  }
+
   const formData = new FormData()
   formData.append('cvFile', cvFile)
   if (mode === 'text') formData.append('jobDescription', jobDescription)
@@ -101,13 +179,46 @@ export async function createAnalysis(
   mode: AnalysisMode,
   jobDescription: string,
   jobImage: File | null,
-  _cvVersion = 'CV sin versión',
+  cvVersion = 'CV sin versión',
   signal?: AbortSignal,
-): Promise<AnalysisResponse> {
-  return analyzeCV(cvFile, mode, jobDescription, jobImage, signal)
+): Promise<HistoryRecord> {
+  if (getMockEnabled()) {
+    await mockDelay()
+    return {
+      id: `mock-${Date.now()}`,
+      role: firstLine(jobDescription),
+      company: 'Oferta laboral',
+      cvFileName: cvFile.name,
+      cvVersion,
+      mode,
+      score: mockAnalysisResponse.matchPercentage,
+      createdAt: Date.now(),
+      jobDescription,
+      result: mockAnalysisResponse,
+    }
+  }
+
+  const formData = new FormData()
+  formData.append('cvFile', cvFile)
+  if (mode === 'text') formData.append('jobDescription', jobDescription)
+  else if (jobImage) formData.append('jobImage', jobImage)
+  formData.append('cvVersion', cvVersion)
+
+  const response = await requestJson<HistoryRecord & { createdAt: string | number }>(
+    '/api/analyses',
+    { method: 'POST', body: formData, signal },
+    `No se pudo conectar con el backend en ${API_URL}.`,
+    'No se pudo completar el análisis.',
+  )
+  return normalizeHistoryRecord(response)
 }
 
 export async function getAnalyses(page = 0, size = 20, signal?: AbortSignal): Promise<AnalysisHistoryPage> {
+  if (getMockEnabled()) {
+    await mockDelay(250)
+    return { content: [], page: 0, size, totalElements: 0, totalPages: 0 }
+  }
+
   const response = await requestJson<AnalysisHistoryPage & { content: Array<Omit<AnalysisSummary, 'createdAt'> & { createdAt: string | number }> }>(
     `/api/analyses?page=${page}&size=${size}`,
     { signal },
@@ -128,6 +239,11 @@ export async function getAnalyses(page = 0, size = 20, signal?: AbortSignal): Pr
 }
 
 export async function getAnalysis(id: string, signal?: AbortSignal): Promise<HistoryRecord> {
+  if (getMockEnabled()) {
+    await mockDelay(250)
+    throw new Error('No hay registros de historial en modo de datos de prueba.')
+  }
+
   const response = await requestJson<HistoryRecord & { createdAt: string | number }>(
     `/api/analyses/${encodeURIComponent(id)}`,
     { signal },
@@ -138,6 +254,8 @@ export async function getAnalysis(id: string, signal?: AbortSignal): Promise<His
 }
 
 export async function deleteAnalysis(id: string): Promise<void> {
+  if (getMockEnabled()) return
+
   await request(
     `/api/analyses/${encodeURIComponent(id)}`,
     { method: 'DELETE' },

@@ -1,6 +1,8 @@
 package com.codercup.jobmatchai.service;
 
 import com.codercup.jobmatchai.dto.AnalysisResponse;
+import com.codercup.jobmatchai.dto.RequirementResponse;
+import com.codercup.jobmatchai.dto.ScoreBreakdownResponse;
 import com.codercup.jobmatchai.dto.internal.GeminiAnalysisResult;
 import com.codercup.jobmatchai.exception.InvalidAnalysisRequestException;
 import com.codercup.jobmatchai.scoring.MatchScoreCalculator;
@@ -136,7 +138,20 @@ public class AnalysisService {
 				aiResult.matchingSkills(),
 				aiResult.missingSkills(),
 				aiResult.recommendations(),
-				aiResult.interviewQuestions()
+				aiResult.interviewQuestions(),
+				aiResult.requirements().stream()
+						.map(requirement -> new RequirementResponse(
+								requirement.name(),
+								requirement.status().name().toLowerCase(Locale.ROOT),
+								requirement.evidence()
+						))
+						.toList(),
+				new ScoreBreakdownResponse(
+						score.breakdown().mandatoryTechnical(),
+						score.breakdown().experienceSeniority(),
+						score.breakdown().desirable(),
+						score.breakdown().complementary()
+				)
 		);
 	}
 

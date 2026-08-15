@@ -5,6 +5,7 @@ import { AppErrorBoundary } from './components/templates/AppErrorBoundary'
 import './styles/globals.css'
 import './styles/loading.css'
 import './styles/theme.css'
+import './styles/components.css'
 import './styles/tailwind.css'
 
 createRoot(document.getElementById('root')!).render(

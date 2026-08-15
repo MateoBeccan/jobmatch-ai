@@ -49,7 +49,7 @@ public class SecurityConfig {
 			if (securityEnabled) {
 				authorize.requestMatchers("/api/analyses", "/api/analyses/**").hasRole("USER");
 			} else {
-				authorize.requestMatchers("/api/analyses", "/api/analyses/**").denyAll();
+				authorize.requestMatchers("/api/analyses", "/api/analyses/**").permitAll();
 			}
 			authorize.anyRequest().denyAll();
 		});

@@ -7,6 +7,8 @@ public record AnalysisResponse(
 		List<String> matchingSkills,
 		List<String> missingSkills,
 		List<String> recommendations,
-		List<String> interviewQuestions
+		List<String> interviewQuestions,
+		List<RequirementResponse> requirements,
+		ScoreBreakdownResponse breakdown
 ) {
 }
