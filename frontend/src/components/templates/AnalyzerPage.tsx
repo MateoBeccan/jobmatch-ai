@@ -9,10 +9,12 @@ import { ThemeToggle } from '../atoms/ThemeToggle'
 import { LoadingScreen } from '../molecules/LoadingScreen'
 import { AnalysisStepper, ANALYSIS_STEPS } from '../molecules/AnalysisStepper'
 import { FileUploadCard } from '../molecules/FileUploadCard'
+import { InlineFilePreview } from '../molecules/InlineFilePreview'
 import { AnalysisErrorAlert } from '../molecules/AnalysisErrorAlert'
 import { Results } from '../organisms/Results'
 import { IMAGE_TYPES, MAX_FILE_SIZE, MAX_JOB_DESCRIPTION_LENGTH, PDF_TYPES } from '../../lib/constants/app'
 import { AppFooter } from '../atoms/AppFooter'
+import { formatFileSize } from '../../lib/helpers/format'
 
 export type AnalyzerInitialOffer = {
   mode: AnalysisMode
@@ -93,6 +95,11 @@ export function AnalyzerPage({ theme, onToggleTheme, onNavigate, initialOffer = 
     setCvFile(null)
     setError(null)
     if (cvInputRef.current) cvInputRef.current.value = ''
+  }
+
+  function handleImageRemove() {
+    setJobImage(null)
+    if (imageInputRef.current) imageInputRef.current.value = ''
   }
 
   function handleCvDrop(event: DragEvent<HTMLButtonElement>) {
@@ -210,6 +217,7 @@ export function AnalyzerPage({ theme, onToggleTheme, onNavigate, initialOffer = 
             onDragOver={(event) => { event.preventDefault(); setIsDragging(true) }}
             onDragLeave={() => setIsDragging(false)}
           />
+          <InlineFilePreview file={cvFile} type="pdf" title="Vista previa del CV" />
           <input ref={cvInputRef} className="visually-hidden" type="file" accept="application/pdf,.pdf" aria-label="Seleccionar CV en PDF" onChange={(event) => handleCvChange(event.target.files?.[0])} />
         </section>
 
@@ -223,11 +231,29 @@ export function AnalyzerPage({ theme, onToggleTheme, onNavigate, initialOffer = 
             <textarea id="job-description" value={jobDescription} onChange={(event) => setJobDescription(event.target.value)} maxLength={MAX_JOB_DESCRIPTION_LENGTH} placeholder="Pegá aquí la descripción del puesto, responsabilidades, requisitos técnicos y habilidades blandas necesarias..." aria-label="Descripción de la oferta laboral" aria-describedby="description-count" />
           ) : (
             <>
-              <button className={`image-picker ${jobImage ? 'has-file' : ''}`} type="button" onClick={() => imageInputRef.current?.click()}>
-                <span className="image-icon" aria-hidden="true">▧</span>
-                <strong>{jobImage ? jobImage.name : 'Seleccioná una captura de la oferta'}</strong>
-                <small>PNG, JPEG o WEBP · Máx. 5 MB</small>
-              </button>
+              {!jobImage ? (
+                <button className="image-picker" type="button" onClick={() => imageInputRef.current?.click()}>
+                  <span className="image-icon" aria-hidden="true">▧</span>
+                  <strong>Seleccioná una captura de la oferta</strong>
+                  <small>PNG, JPEG o WEBP · Máx. 5 MB</small>
+                </button>
+              ) : (
+                <>
+                  <div className="file-card has-file image-file-card">
+                    <span className="file-check" aria-hidden="true">✓</span>
+                    <span className="file-copy">
+                      <strong>{jobImage.name}</strong>
+                      <small>{jobImage.type || 'Imagen'} · {formatFileSize(jobImage.size)}</small>
+                      <span className="file-status">Imagen cargada</span>
+                    </span>
+                    <span className="file-actions">
+                      <button className="file-action-button" type="button" onClick={() => imageInputRef.current?.click()}>Cambiar imagen</button>
+                      <button className="file-action-button danger" type="button" onClick={handleImageRemove}>Eliminar</button>
+                    </span>
+                  </div>
+                  <InlineFilePreview file={jobImage} type="image" title="Vista previa de la oferta" />
+                </>
+              )}
               <input ref={imageInputRef} className="visually-hidden" type="file" accept="image/png,image/jpeg,image/webp" aria-label="Seleccionar imagen de la oferta" onChange={(event) => handleImageChange(event.target.files?.[0])} />
             </>
           )}
