@@ -39,6 +39,16 @@ describe('toUserFacingAnalysisError', () => {
     })
   })
 
+  it('maps invalid CV content errors without retry', () => {
+    const view = toUserFacingAnalysisError(new ApiRequestError('backend safe message', 400, 'INVALID_CV_CONTENT'))
+
+    expect(view).toEqual({
+      title: 'El archivo no parece ser un CV',
+      message: 'No pudimos identificar información típica de un currículum en el PDF. Verificá que hayas seleccionado tu CV e intentá nuevamente.',
+      retryable: false,
+    })
+  })
+
   it('uses safe fallbacks for internal and connection errors', () => {
     expect(toUserFacingAnalysisError(new ApiRequestError('secret', 500, 'INTERNAL_ERROR')).message).not.toContain('secret')
     expect(toUserFacingAnalysisError(new ApiRequestError('http://localhost:8080', 0, 'CONNECTION_ERROR')).message)

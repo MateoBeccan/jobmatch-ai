@@ -1,9 +1,11 @@
 package com.codercup.jobmatchai.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.codercup.jobmatchai.dto.AnalysisResponse;
 import com.codercup.jobmatchai.dto.internal.GeminiAnalysisResult;
+import com.codercup.jobmatchai.exception.InvalidCvContentException;
 import com.codercup.jobmatchai.scoring.MatchScoreCalculator;
 import com.codercup.jobmatchai.scoring.RequirementAssessment;
 import com.codercup.jobmatchai.scoring.RequirementCategory;
@@ -81,6 +83,44 @@ class AnalysisServiceTest {
 		assertThat(geminiService.imageCalls()).isEqualTo(1);
 	}
 
+	@Test
+	void validCvIsExtractedValidatedAndSentToGemini() {
+		TrackingCvContentValidator validator = new TrackingCvContentValidator(false);
+		FakeGeminiService geminiService = new FakeGeminiService(integrationResult());
+		AnalysisService analysisService = new AnalysisService(
+				new FakePdfService(),
+				validator,
+				geminiService,
+				new MatchScoreCalculator(),
+				5000
+		);
+
+		AnalysisResponse response = analysisService.analyze(validCvFile(), "Java developer role", null);
+
+		assertThat(validator.validatedText()).contains("Perfil profesional");
+		assertThat(geminiService.textCalls()).isEqualTo(1);
+		assertThat(response.matchPercentage()).isEqualTo(60);
+	}
+
+	@Test
+	void invalidCvContentStopsBeforeGeminiAndScoring() {
+		TrackingCvContentValidator validator = new TrackingCvContentValidator(true);
+		FakeGeminiService geminiService = new FakeGeminiService(integrationResult());
+		AnalysisService analysisService = new AnalysisService(
+				new FakePdfService(),
+				validator,
+				geminiService,
+				new MatchScoreCalculator(),
+				5000
+		);
+
+		assertThatThrownBy(() -> analysisService.analyze(validCvFile(), "Java developer role", null))
+				.isInstanceOf(InvalidCvContentException.class);
+		assertThat(validator.validatedText()).contains("Perfil profesional");
+		assertThat(geminiService.textCalls()).isZero();
+		assertThat(geminiService.imageCalls()).isZero();
+	}
+
 	private GeminiAnalysisResult integrationResult() {
 		return new GeminiAnalysisResult(
 				List.of(
@@ -142,7 +182,35 @@ class AnalysisServiceTest {
 
 		@Override
 		public String extractText(MultipartFile file) {
-			return "CV con Java, Spring Boot, SQL, Docker y Git";
+			return """
+					Perfil profesional
+					Desarrollador backend con experiencia laboral en Java y Spring Boot.
+					Educación: Ingeniería en Sistemas.
+					Habilidades técnicas: Java, Spring Boot, SQL, Docker y Git.
+					Proyectos: API REST para gestión de tareas.
+					""";
+		}
+	}
+
+	private static class TrackingCvContentValidator extends CvContentValidator {
+
+		private final boolean reject;
+		private String validatedText;
+
+		TrackingCvContentValidator(boolean reject) {
+			this.reject = reject;
+		}
+
+		String validatedText() {
+			return validatedText;
+		}
+
+		@Override
+		public void validate(String cvText) {
+			validatedText = cvText;
+			if (reject) {
+				throw new InvalidCvContentException();
+			}
 		}
 	}
 

@@ -38,6 +38,18 @@ class ApiExceptionHandlerTest {
 	}
 
 	@Test
+	void handleInvalidCvContentReturnsSpecificSafeCode() {
+		ResponseEntity<ApiExceptionHandler.ApiErrorResponse> response = handler.handleInvalidCvContent(
+				new InvalidCvContentException()
+		);
+
+		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+		assertThat(response.getBody()).isNotNull();
+		assertThat(response.getBody().code()).isEqualTo("INVALID_CV_CONTENT");
+		assertThat(response.getBody().message()).isEqualTo("El archivo cargado no parece contener un currículum válido.");
+	}
+
+	@Test
 	void handleMissingRequestPartReturnsMissingRequestDataCode() throws Exception {
 		ResponseEntity<ApiExceptionHandler.ApiErrorResponse> response = handler.handleMissingRequestPart(
 				new MissingServletRequestParameterException("cvFile", "MultipartFile")

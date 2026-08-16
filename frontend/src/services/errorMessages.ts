@@ -59,6 +59,12 @@ export function toUserFacingAnalysisError(error: unknown): AnalysisErrorView {
         message: error.message,
         retryable: false,
       }
+    case 'INVALID_CV_CONTENT':
+      return {
+        title: 'El archivo no parece ser un CV',
+        message: 'No pudimos identificar información típica de un currículum en el PDF. Verificá que hayas seleccionado tu CV e intentá nuevamente.',
+        retryable: false,
+      }
     case 'CONFIGURATION_ERROR':
       return {
         title: 'Servicio no disponible',

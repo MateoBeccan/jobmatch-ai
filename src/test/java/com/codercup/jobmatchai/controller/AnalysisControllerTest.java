@@ -36,6 +36,7 @@ import com.codercup.jobmatchai.scoring.RequirementCategory;
 import com.codercup.jobmatchai.scoring.RequirementStatus;
 import com.codercup.jobmatchai.service.AnalysisService;
 import com.codercup.jobmatchai.service.AnalysisHistoryService;
+import com.codercup.jobmatchai.service.CvContentValidator;
 import com.codercup.jobmatchai.service.GeminiService;
 import com.codercup.jobmatchai.service.PdfService;
 
@@ -609,6 +610,15 @@ class AnalysisControllerTest {
 						RequirementStatus status
 				) {
 					return new RequirementAssessment(name, category, status, "Evidencia de test");
+				}
+			};
+		}
+
+		@Bean
+		CvContentValidator cvContentValidator() {
+			return new CvContentValidator() {
+				@Override
+				public void validate(String cvText) {
 				}
 			};
 		}
