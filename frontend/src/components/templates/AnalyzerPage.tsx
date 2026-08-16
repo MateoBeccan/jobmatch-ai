@@ -9,6 +9,7 @@ import { AnalysisStepper, ANALYSIS_STEPS } from '../molecules/AnalysisStepper'
 import { FileUploadCard } from '../molecules/FileUploadCard'
 import { Results } from '../organisms/Results'
 import { IMAGE_TYPES, MAX_FILE_SIZE, MAX_JOB_DESCRIPTION_LENGTH, PDF_TYPES } from '../../lib/constants/app'
+import { AppFooter } from '../atoms/AppFooter'
 
 export type AnalyzerInitialOffer = {
   mode: AnalysisMode
@@ -227,8 +228,16 @@ export function AnalyzerPage({ theme, onToggleTheme, onNavigate, initialOffer = 
               <input ref={imageInputRef} className="visually-hidden" type="file" accept="image/png,image/jpeg,image/webp" aria-label="Seleccionar imagen de la oferta" onChange={(event) => handleImageChange(event.target.files?.[0])} />
             </>
           )}
-          <div className="field-footer"><span>Solo se utiliza para este análisis.</span><span className="secure-label">⌁ Datos protegidos</span></div>
+          <div className="field-footer"><span>Se utilizará para generar tu análisis.</span><span className="secure-label">⌁ Procesamiento mediante IA</span></div>
         </section>
+
+        <aside className="ai-privacy-notice" aria-labelledby="ai-privacy-title">
+          <div className="ai-privacy-icon" aria-hidden="true">i</div>
+          <div>
+            <h2 id="ai-privacy-title">Privacidad y procesamiento con IA</h2>
+            <p>El contenido de tu CV y de la oferta laboral será enviado a un servicio externo de inteligencia artificial (Google Gemini) para realizar el análisis. No cargues información sensible que no desees procesar mediante IA.</p>
+          </div>
+        </aside>
 
         {error && (
           <div id="form-error" className={`alert ${errorKind === 'analysis' ? 'alert-analysis' : ''}`} role="alert" aria-live="assertive">
@@ -237,6 +246,7 @@ export function AnalyzerPage({ theme, onToggleTheme, onNavigate, initialOffer = 
             {errorKind === 'analysis' && <button type="button" onClick={() => void runAnalysis()}>Intentar nuevamente</button>}
           </div>
         )}
+        <p className="analysis-consent-note">Al continuar, el contenido cargado será procesado mediante inteligencia artificial.</p>
         <button className="submit-button" type="submit" disabled={isLoading}><span className="sparkle">✦</span> Analizar con IA <span className="submit-arrow">→</span></button>
       </form>
 
@@ -248,7 +258,7 @@ export function AnalyzerPage({ theme, onToggleTheme, onNavigate, initialOffer = 
           onNavigate={onNavigate}
         />
       )}
-      {!result && <p className="privacy-note"><span>✦</span> Tu CV se utiliza únicamente para realizar este análisis.</p>}
+      <AppFooter />
       {!result && <BottomNav active="analyze" onNavigate={onNavigate} />}
     </main>
   )
