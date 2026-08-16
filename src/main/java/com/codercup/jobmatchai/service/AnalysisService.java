@@ -28,22 +28,25 @@ public class AnalysisService {
 	);
 
 	private final PdfService pdfService;
+	private final CvContentValidator cvContentValidator;
 	private final GeminiService geminiService;
 	private final MatchScoreCalculator matchScoreCalculator;
 	private final int maxJobDescriptionLength;
 
 	public AnalysisService(PdfService pdfService, GeminiService geminiService, MatchScoreCalculator matchScoreCalculator) {
-		this(pdfService, geminiService, matchScoreCalculator, 5000);
+		this(pdfService, new CvContentValidator(), geminiService, matchScoreCalculator, 5000);
 	}
 
 	@org.springframework.beans.factory.annotation.Autowired
 	public AnalysisService(
 			PdfService pdfService,
+			CvContentValidator cvContentValidator,
 			GeminiService geminiService,
 			MatchScoreCalculator matchScoreCalculator,
 			@org.springframework.beans.factory.annotation.Value("${analysis.max-description-length:5000}") int maxJobDescriptionLength
 	) {
 		this.pdfService = pdfService;
+		this.cvContentValidator = cvContentValidator;
 		this.geminiService = geminiService;
 		this.matchScoreCalculator = matchScoreCalculator;
 		this.maxJobDescriptionLength = maxJobDescriptionLength;
@@ -52,6 +55,7 @@ public class AnalysisService {
 	public AnalysisResponse analyze(MultipartFile cvFile, String jobDescription, MultipartFile jobImage) {
 		validateRequest(cvFile, jobDescription, jobImage);
 		String cvText = pdfService.extractText(cvFile);
+		cvContentValidator.validate(cvText);
 
 		GeminiAnalysisResult aiResult = hasText(jobDescription)
 				? geminiService.analyze(cvText, jobDescription)

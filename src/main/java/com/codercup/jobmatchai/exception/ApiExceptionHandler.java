@@ -23,6 +23,13 @@ public class ApiExceptionHandler {
 				.body(new ApiErrorResponse("INVALID_REQUEST", exception.getMessage()));
 	}
 
+	@ExceptionHandler(InvalidCvContentException.class)
+	public ResponseEntity<ApiErrorResponse> handleInvalidCvContent(InvalidCvContentException exception) {
+		return ResponseEntity
+				.status(HttpStatus.BAD_REQUEST)
+				.body(new ApiErrorResponse("INVALID_CV_CONTENT", exception.getMessage()));
+	}
+
 	@ExceptionHandler(AnalysisConfigurationException.class)
 	public ResponseEntity<ApiErrorResponse> handleAnalysisConfiguration(AnalysisConfigurationException exception) {
 		LOGGER.error("Analysis service configuration error: {}", exception.getMessage(), exception);
