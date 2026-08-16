@@ -29,6 +29,7 @@ class RateLimitFilterIntegrationTest {
 
 		mockMvc.perform(multipart("/api/analyze"))
 				.andExpect(status().isTooManyRequests())
+				.andExpect(jsonPath("$.code").value("RATE_LIMIT_EXCEEDED"))
 				.andExpect(jsonPath("$.message").value("Se supero el limite de analisis por minuto."));
 	}
 }

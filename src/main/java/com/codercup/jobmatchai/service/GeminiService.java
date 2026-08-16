@@ -1,6 +1,7 @@
 package com.codercup.jobmatchai.service;
 
 import com.codercup.jobmatchai.dto.internal.GeminiAnalysisResult;
+import com.codercup.jobmatchai.exception.AiQuotaExceededException;
 import com.codercup.jobmatchai.exception.AiServiceTimeoutException;
 import com.codercup.jobmatchai.exception.AiServiceUnavailableException;
 import com.codercup.jobmatchai.exception.AnalysisConfigurationException;
@@ -158,6 +159,9 @@ public class GeminiService {
 		return switch (exception.code()) {
 			case 400 -> new AnalysisConfigurationException(
 					"Gemini rechazo la solicitud. Revisa el modelo configurado y el formato enviado.");
+			case 429 -> new AiQuotaExceededException(
+					"Se alcanzó el límite de uso disponible del servicio de inteligencia artificial.",
+					exception);
 			case 401, 403 -> new AnalysisConfigurationException(
 					"La clave de Gemini no es valida o no tiene permisos para usar la API.");
 			case 404 -> new AnalysisConfigurationException(

@@ -13,7 +13,19 @@ import type {
 const API_URL = (import.meta.env.VITE_API_URL ?? 'http://localhost:8080').replace(/\/$/, '')
 const REQUEST_TIMEOUT_MS = 150000
 
-type ApiErrorBody = { message?: unknown }
+type ApiErrorBody = { code?: unknown; message?: unknown }
+
+export class ApiRequestError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly code?: string,
+    readonly retryAfterSeconds?: number,
+  ) {
+    super(message)
+    this.name = 'ApiRequestError'
+  }
+}
 
 function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((item) => typeof item === 'string')
@@ -130,7 +142,7 @@ function buildHistoryRecord(
   }
 }
 
-async function request(path: string, init: RequestInit, connectionMessage: string, fallbackMessage: string) {
+async function request(path: string, init: RequestInit, fallbackMessage: string) {
   let response: Response
   const controller = new AbortController()
   let timedOut = false
@@ -151,10 +163,10 @@ async function request(path: string, init: RequestInit, connectionMessage: strin
     })
   } catch (error) {
     if (error instanceof DOMException && error.name === 'AbortError' && timedOut) {
-      throw new Error('La solicitud tardó demasiado. Intenta nuevamente.')
+      throw new ApiRequestError('La solicitud tardó demasiado. Intenta nuevamente.', 0, 'FRONTEND_TIMEOUT')
     }
     if (error instanceof DOMException && error.name === 'AbortError') throw error
-    throw new Error(connectionMessage)
+    throw new ApiRequestError('No se pudo conectar con el servicio de análisis.', 0, 'CONNECTION_ERROR')
   } finally {
     clearTimeout(timeout)
     init.signal?.removeEventListener('abort', abortRequest)
@@ -162,15 +174,43 @@ async function request(path: string, init: RequestInit, connectionMessage: strin
 
   if (!response.ok) {
     const errorBody = await response.json().catch(() => null) as ApiErrorBody | null
+    const code = typeof errorBody?.code === 'string' ? errorBody.code : fallbackErrorCode(response.status)
     const message = typeof errorBody?.message === 'string' ? errorBody.message : fallbackMessage
-    throw new Error(message)
+    throw new ApiRequestError(message, response.status, code, retryAfterSeconds(response.headers.get('Retry-After')))
   }
 
   return response
 }
 
-async function requestJson<T>(path: string, init: RequestInit, connectionMessage: string, fallbackMessage: string): Promise<T> {
-  const response = await request(path, init, connectionMessage, fallbackMessage)
+function retryAfterSeconds(value: string | null) {
+  if (!value) return undefined
+  const seconds = Number.parseInt(value, 10)
+  return Number.isFinite(seconds) && seconds >= 0 ? seconds : undefined
+}
+
+function fallbackErrorCode(status: number) {
+  switch (status) {
+    case 400:
+      return 'INVALID_REQUEST'
+    case 413:
+      return 'FILE_TOO_LARGE'
+    case 429:
+      return 'RATE_LIMIT_EXCEEDED'
+    case 502:
+      return 'AI_INVALID_RESPONSE'
+    case 503:
+      return 'AI_UNAVAILABLE'
+    case 504:
+      return 'AI_TIMEOUT'
+    case 500:
+      return 'INTERNAL_ERROR'
+    default:
+      return undefined
+  }
+}
+
+async function requestJson<T>(path: string, init: RequestInit, fallbackMessage: string): Promise<T> {
+  const response = await request(path, init, fallbackMessage)
   return response.json() as Promise<T>
 }
 
@@ -194,7 +234,6 @@ export async function analyzeCV(
   const response = await requestJson<AnalysisResponse>(
     '/api/analyze',
     { method: 'POST', body: formData, signal },
-    `No se pudo conectar con el backend en ${API_URL}.`,
     'No se pudo completar el análisis.',
   )
   return normalizeAnalysisResponse(response)
@@ -221,7 +260,6 @@ export async function createAnalysis(
   const response = await requestJson<AnalysisResponse>(
     '/api/analyze',
     { method: 'POST', body: formData, signal },
-    `No se pudo conectar con el backend en ${API_URL}.`,
     'No se pudo completar el análisis.',
   )
   const result = normalizeAnalysisResponse(response)

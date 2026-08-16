@@ -615,6 +615,15 @@
 :root[data-theme='dark'] .error-state-icon { color: #ffc4cc; background: #45242f; }
 
 /* Alert de análisis */
+.alert-copy {
+  display: grid;
+  gap: 3px;
+}
+.alert-copy strong {
+  color: inherit;
+  font-size: 13px;
+  line-height: 1.3;
+}
 .alert button {
   margin-left: auto;
   padding: 7px 12px;
