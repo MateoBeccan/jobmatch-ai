@@ -11,6 +11,7 @@ import java.util.ArrayDeque;
 import java.util.List;
 import java.util.Queue;
 import com.codercup.jobmatchai.dto.internal.GeminiAnalysisResult;
+import com.codercup.jobmatchai.exception.AiQuotaExceededException;
 import com.codercup.jobmatchai.exception.AiServiceTimeoutException;
 import com.codercup.jobmatchai.exception.AnalysisConfigurationException;
 import com.codercup.jobmatchai.exception.AiServiceUnavailableException;
@@ -512,6 +513,21 @@ class GeminiServiceTest {
 		assertThatThrownBy(() -> geminiService.analyze("CV con Java", "Oferta con Java"))
 				.isInstanceOf(AiServiceUnavailableException.class)
 				.hasMessage("El servicio de inteligencia artificial no esta disponible temporalmente.");
+		assertThat(geminiService.attempts()).isEqualTo(2);
+	}
+
+	@Test
+	void analyzeMapsGeminiHttp429AfterRetriesToQuotaExceeded() {
+		RetryBehaviorGeminiService geminiService = new RetryBehaviorGeminiService(
+				2,
+				apiException(429),
+				apiException(429),
+				new AssertionError("No debe existir un tercer intento")
+		);
+
+		assertThatThrownBy(() -> geminiService.analyze("CV con Java", "Oferta con Java"))
+				.isInstanceOf(AiQuotaExceededException.class)
+				.hasMessage("Se alcanzó el límite de uso disponible del servicio de inteligencia artificial.");
 		assertThat(geminiService.attempts()).isEqualTo(2);
 	}
 

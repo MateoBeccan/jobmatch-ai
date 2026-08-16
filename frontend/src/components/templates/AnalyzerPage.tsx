@@ -1,12 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
 import type { DragEvent, FormEvent } from 'react'
 import { createAnalysis } from '../../services/api'
+import { toUserFacingAnalysisError } from '../../services/errorMessages'
+import type { AnalysisErrorView } from '../../services/errorMessages'
 import type { AnalysisMode, AnalysisResponse, Theme } from '../../lib/types/types'
 import { BottomNav } from '../atoms/BottomNav'
 import { ThemeToggle } from '../atoms/ThemeToggle'
 import { LoadingScreen } from '../molecules/LoadingScreen'
 import { AnalysisStepper, ANALYSIS_STEPS } from '../molecules/AnalysisStepper'
 import { FileUploadCard } from '../molecules/FileUploadCard'
+import { AnalysisErrorAlert } from '../molecules/AnalysisErrorAlert'
 import { Results } from '../organisms/Results'
 import { IMAGE_TYPES, MAX_FILE_SIZE, MAX_JOB_DESCRIPTION_LENGTH, PDF_TYPES } from '../../lib/constants/app'
 import { AppFooter } from '../atoms/AppFooter'
@@ -31,7 +34,7 @@ export function AnalyzerPage({ theme, onToggleTheme, onNavigate, initialOffer = 
   const [jobDescription, setJobDescription] = useState(initialOffer?.jobDescription ?? '')
   const [mode, setMode] = useState<AnalysisMode>(initialOffer?.mode ?? 'text')
   const [result, setResult] = useState<AnalysisResponse | null>(null)
-  const [error, setError] = useState('')
+  const [error, setError] = useState<AnalysisErrorView | null>(null)
   const [errorKind, setErrorKind] = useState<'validation' | 'analysis'>('validation')
   const [isLoading, setIsLoading] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
@@ -64,7 +67,7 @@ export function AnalyzerPage({ theme, onToggleTheme, onNavigate, initialOffer = 
     if (!file) return
     const validationError = validateFile(file, 'cv')
     setErrorKind('validation')
-    setError(validationError)
+    setError(validationError ? validationErrorView(validationError) : null)
     if (validationError) {
       setCvFile(null)
       if (cvInputRef.current) cvInputRef.current.value = ''
@@ -77,7 +80,7 @@ export function AnalyzerPage({ theme, onToggleTheme, onNavigate, initialOffer = 
     if (!file) return
     const validationError = validateFile(file, 'image')
     setErrorKind('validation')
-    setError(validationError)
+    setError(validationError ? validationErrorView(validationError) : null)
     if (validationError) {
       setJobImage(null)
       if (imageInputRef.current) imageInputRef.current.value = ''
@@ -88,7 +91,7 @@ export function AnalyzerPage({ theme, onToggleTheme, onNavigate, initialOffer = 
 
   function handleCvRemove() {
     setCvFile(null)
-    setError('')
+    setError(null)
     if (cvInputRef.current) cvInputRef.current.value = ''
   }
 
@@ -100,7 +103,7 @@ export function AnalyzerPage({ theme, onToggleTheme, onNavigate, initialOffer = 
 
   function changeMode(nextMode: AnalysisMode) {
     setMode(nextMode)
-    setError('')
+    setError(null)
     if (nextMode === 'text') {
       setJobImage(null)
       if (imageInputRef.current) imageInputRef.current.value = ''
@@ -116,7 +119,7 @@ export function AnalyzerPage({ theme, onToggleTheme, onNavigate, initialOffer = 
     setJobImage(null)
     setJobDescription('')
     setResult(null)
-    setError('')
+    setError(null)
     setIsDragging(false)
     if (cvInputRef.current) cvInputRef.current.value = ''
     if (imageInputRef.current) imageInputRef.current.value = ''
@@ -124,7 +127,7 @@ export function AnalyzerPage({ theme, onToggleTheme, onNavigate, initialOffer = 
 
   async function runAnalysis() {
     if (!cvFile) return
-    setError('')
+    setError(null)
     setResult(null)
     setIsLoading(true)
     analysisAbortRef.current?.abort()
@@ -137,7 +140,7 @@ export function AnalyzerPage({ theme, onToggleTheme, onNavigate, initialOffer = 
     } catch (requestError) {
       if (requestError instanceof DOMException && requestError.name === 'AbortError') return
       setErrorKind('analysis')
-      setError(requestError instanceof Error ? requestError.message : 'No se pudo completar el análisis.')
+      setError(toUserFacingAnalysisError(requestError))
     } finally {
       if (analysisAbortRef.current === controller) analysisAbortRef.current = null
       setIsLoading(false)
@@ -146,22 +149,22 @@ export function AnalyzerPage({ theme, onToggleTheme, onNavigate, initialOffer = 
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    setError('')
+    setError(null)
     setResult(null)
 
     if (!cvFile) {
       setErrorKind('validation')
-      setError('Seleccioná tu CV en PDF para continuar.')
+      setError(validationErrorView('Seleccioná tu CV en PDF para continuar.'))
       return
     }
     if (mode === 'text' && !jobDescription.trim()) {
       setErrorKind('validation')
-      setError('Escribí la descripción de la oferta laboral.')
+      setError(validationErrorView('Escribí la descripción de la oferta laboral.'))
       return
     }
     if (mode === 'image' && !jobImage) {
       setErrorKind('validation')
-      setError('Seleccioná una imagen con la oferta laboral.')
+      setError(validationErrorView('Seleccioná una imagen con la oferta laboral.'))
       return
     }
 
@@ -240,11 +243,12 @@ export function AnalyzerPage({ theme, onToggleTheme, onNavigate, initialOffer = 
         </aside>
 
         {error && (
-          <div id="form-error" className={`alert ${errorKind === 'analysis' ? 'alert-analysis' : ''}`} role="alert" aria-live="assertive">
-            <span>!</span>
-            <p>{error}</p>
-            {errorKind === 'analysis' && <button type="button" onClick={() => void runAnalysis()}>Intentar nuevamente</button>}
-          </div>
+          <AnalysisErrorAlert
+            error={error}
+            onRetry={() => {
+              if (errorKind === 'analysis' && error.retryable) void runAnalysis()
+            }}
+          />
         )}
         <p className="analysis-consent-note">Al continuar, el contenido cargado será procesado mediante inteligencia artificial.</p>
         <button className="submit-button" type="submit" disabled={isLoading}><span className="sparkle">✦</span> Analizar con IA <span className="submit-arrow">→</span></button>
@@ -262,4 +266,8 @@ export function AnalyzerPage({ theme, onToggleTheme, onNavigate, initialOffer = 
       {!result && <BottomNav active="analyze" onNavigate={onNavigate} />}
     </main>
   )
+}
+
+function validationErrorView(message: string): AnalysisErrorView {
+  return { message, retryable: false }
 }

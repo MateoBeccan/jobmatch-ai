@@ -52,7 +52,9 @@ public class RateLimitFilter extends OncePerRequestFilter {
 			response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
 			response.setHeader("Retry-After", "60");
 			response.setContentType("application/json");
-			response.getWriter().write("{\"message\":\"Se supero el limite de analisis por minuto.\"}");
+			response.getWriter().write(
+					"{\"code\":\"RATE_LIMIT_EXCEEDED\",\"message\":\"Se supero el limite de analisis por minuto.\"}"
+			);
 			return;
 		}
 

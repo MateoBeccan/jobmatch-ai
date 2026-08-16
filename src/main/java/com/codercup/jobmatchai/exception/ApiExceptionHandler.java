@@ -20,49 +20,63 @@ public class ApiExceptionHandler {
 	public ResponseEntity<ApiErrorResponse> handleInvalidAnalysisRequest(InvalidAnalysisRequestException exception) {
 		return ResponseEntity
 				.status(HttpStatus.BAD_REQUEST)
-				.body(new ApiErrorResponse(exception.getMessage()));
+				.body(new ApiErrorResponse("INVALID_REQUEST", exception.getMessage()));
 	}
 
 	@ExceptionHandler(AnalysisConfigurationException.class)
 	public ResponseEntity<ApiErrorResponse> handleAnalysisConfiguration(AnalysisConfigurationException exception) {
+		LOGGER.error("Analysis service configuration error: {}", exception.getMessage(), exception);
 		return ResponseEntity
 				.status(HttpStatus.INTERNAL_SERVER_ERROR)
-				.body(new ApiErrorResponse(exception.getMessage()));
+				.body(new ApiErrorResponse(
+						"CONFIGURATION_ERROR",
+						"El servicio de análisis no está configurado correctamente."
+				));
+	}
+
+	@ExceptionHandler(AiQuotaExceededException.class)
+	public ResponseEntity<ApiErrorResponse> handleAiQuotaExceeded(AiQuotaExceededException exception) {
+		return ResponseEntity
+				.status(HttpStatus.TOO_MANY_REQUESTS)
+				.body(new ApiErrorResponse(
+						"AI_QUOTA_EXCEEDED",
+						"Se alcanzó el límite de uso disponible del servicio de inteligencia artificial."
+				));
 	}
 
 	@ExceptionHandler(AiServiceUnavailableException.class)
 	public ResponseEntity<ApiErrorResponse> handleAiServiceUnavailable(AiServiceUnavailableException exception) {
 		return ResponseEntity
 				.status(HttpStatus.SERVICE_UNAVAILABLE)
-				.body(new ApiErrorResponse(exception.getMessage()));
+				.body(new ApiErrorResponse("AI_UNAVAILABLE", exception.getMessage()));
 	}
 
 	@ExceptionHandler(AiServiceTimeoutException.class)
 	public ResponseEntity<ApiErrorResponse> handleAiServiceTimeout(AiServiceTimeoutException exception) {
 		return ResponseEntity
 				.status(HttpStatus.GATEWAY_TIMEOUT)
-				.body(new ApiErrorResponse(exception.getMessage()));
+				.body(new ApiErrorResponse("AI_TIMEOUT", exception.getMessage()));
 	}
 
 	@ExceptionHandler(InvalidAiResponseException.class)
 	public ResponseEntity<ApiErrorResponse> handleInvalidAiResponse(InvalidAiResponseException exception) {
 		return ResponseEntity
 				.status(HttpStatus.BAD_GATEWAY)
-				.body(new ApiErrorResponse(exception.getMessage()));
+				.body(new ApiErrorResponse("AI_INVALID_RESPONSE", exception.getMessage()));
 	}
 
 	@ExceptionHandler(MaxUploadSizeExceededException.class)
 	public ResponseEntity<ApiErrorResponse> handleMaxUploadSizeExceeded(MaxUploadSizeExceededException exception) {
 		return ResponseEntity
 				.status(HttpStatus.CONTENT_TOO_LARGE)
-				.body(new ApiErrorResponse("El archivo enviado supera el tamaño maximo permitido."));
+				.body(new ApiErrorResponse("FILE_TOO_LARGE", "El archivo enviado supera el tamaño maximo permitido."));
 	}
 
 	@ExceptionHandler({MissingServletRequestPartException.class, MissingServletRequestParameterException.class})
 	public ResponseEntity<ApiErrorResponse> handleMissingRequestPart(Exception exception) {
 		return ResponseEntity
 				.status(HttpStatus.BAD_REQUEST)
-				.body(new ApiErrorResponse("Falta información requerida para procesar la solicitud."));
+				.body(new ApiErrorResponse("MISSING_REQUEST_DATA", "Falta información requerida para procesar la solicitud."));
 	}
 
 	@ExceptionHandler(ResponseStatusException.class)
@@ -70,7 +84,7 @@ public class ApiExceptionHandler {
 		String reason = exception.getReason() == null ? "La solicitud no pudo procesarse." : exception.getReason();
 		return ResponseEntity
 				.status(exception.getStatusCode())
-				.body(new ApiErrorResponse(reason));
+				.body(new ApiErrorResponse("INVALID_REQUEST", reason));
 	}
 
 	@ExceptionHandler(Exception.class)
@@ -79,9 +93,9 @@ public class ApiExceptionHandler {
 				exception.getClass().getName(), exception);
 		return ResponseEntity
 				.status(HttpStatus.INTERNAL_SERVER_ERROR)
-				.body(new ApiErrorResponse("Ocurrio un error interno al procesar la solicitud."));
+				.body(new ApiErrorResponse("INTERNAL_ERROR", "Ocurrio un error interno al procesar la solicitud."));
 	}
 
-	public record ApiErrorResponse(String message) {
+	public record ApiErrorResponse(String code, String message) {
 	}
 }

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { analyzeCV, createAnalysis, deleteAnalysis, getAnalyses, getAnalysis } from './api'
+import { analyzeCV, ApiRequestError, createAnalysis, deleteAnalysis, getAnalyses, getAnalysis } from './api'
 import { getHistory, saveHistoryRecord } from '../lib/storage/historyStorage'
 import type { AnalysisResponse, HistoryRecord } from '../lib/types/types'
 
@@ -172,6 +172,98 @@ describe('api', () => {
       'Java developer role',
       null,
     )).rejects.toThrow(/desglose de puntaje/)
+  })
+
+  it('preserves API error status code and Retry-After header', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(errorResponse(
+      429,
+      { code: 'RATE_LIMIT_EXCEEDED', message: 'Se supero el limite de analisis por minuto.' },
+      { 'Retry-After': '60' },
+    )))
+
+    await expect(analyzeCV(
+      new File(['cv'], 'cv.pdf', { type: 'application/pdf' }),
+      'text',
+      'Java developer role',
+      null,
+    )).rejects.toMatchObject({
+      status: 429,
+      code: 'RATE_LIMIT_EXCEEDED',
+      retryAfterSeconds: 60,
+      message: 'Se supero el limite de analisis por minuto.',
+    })
+  })
+
+  it('uses a safe fallback when the error body is not JSON', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: false,
+      status: 503,
+      headers: responseHeaders({}),
+      json: () => Promise.reject(new SyntaxError('invalid json')),
+    } as Response))
+
+    await expect(analyzeCV(
+      new File(['cv'], 'cv.pdf', { type: 'application/pdf' }),
+      'text',
+      'Java developer role',
+      null,
+    )).rejects.toMatchObject({
+      status: 503,
+      message: 'No se pudo completar el análisis.',
+    })
+  })
+
+  it('infers an error code from status when backend response has no code', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(errorResponse(
+      503,
+      { message: 'El servicio de inteligencia artificial no esta disponible temporalmente.' },
+    )))
+
+    await expect(analyzeCV(
+      new File(['cv'], 'cv.pdf', { type: 'application/pdf' }),
+      'text',
+      'Java developer role',
+      null,
+    )).rejects.toMatchObject({
+      status: 503,
+      code: 'AI_UNAVAILABLE',
+      message: 'El servicio de inteligencia artificial no esta disponible temporalmente.',
+    })
+  })
+
+  it('infers a safe code for non JSON HTTP errors', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: false,
+      status: 503,
+      headers: responseHeaders({}),
+      json: () => Promise.reject(new SyntaxError('invalid json')),
+    } as Response))
+
+    await expect(analyzeCV(
+      new File(['cv'], 'cv.pdf', { type: 'application/pdf' }),
+      'text',
+      'Java developer role',
+      null,
+    )).rejects.toMatchObject({
+      status: 503,
+      code: 'AI_UNAVAILABLE',
+      message: 'No se pudo completar el análisis.',
+    })
+  })
+
+  it('does not expose API_URL when the request cannot connect', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('network failed')))
+
+    await expect(analyzeCV(
+      new File(['cv'], 'cv.pdf', { type: 'application/pdf' }),
+      'text',
+      'Java developer role',
+      null,
+    )).rejects.toSatisfy((error: unknown) => (
+      error instanceof ApiRequestError
+      && error.code === 'CONNECTION_ERROR'
+      && !error.message.includes('http://localhost:8080')
+    ))
   })
 
   it('saves a created analysis in localStorage', async () => {
@@ -386,6 +478,21 @@ function jsonResponse(body: unknown) {
     ok: true,
     json: () => Promise.resolve(body),
   } as Response
+}
+
+function errorResponse(status: number, body: unknown, headers: Record<string, string> = {}) {
+  return {
+    ok: false,
+    status,
+    headers: responseHeaders(headers),
+    json: () => Promise.resolve(body),
+  } as Response
+}
+
+function responseHeaders(headers: Record<string, string>) {
+  return {
+    get: (name: string) => headers[name] ?? headers[name.toLowerCase()] ?? null,
+  } as Headers
 }
 
 function historyRecord(overrides: Partial<HistoryRecord> = {}): HistoryRecord {

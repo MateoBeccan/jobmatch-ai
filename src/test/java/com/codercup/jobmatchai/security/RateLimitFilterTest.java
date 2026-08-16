@@ -148,6 +148,7 @@ class RateLimitFilterTest {
 	private void assertTooManyRequests(MockHttpServletResponse response) throws Exception {
 		assertThat(response.getStatus()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS.value());
 		assertThat(response.getHeader("Retry-After")).isEqualTo("60");
+		assertThat(response.getContentAsString()).contains("\"code\":\"RATE_LIMIT_EXCEEDED\"");
 		assertThat(response.getContentAsString()).contains("Se supero el limite de analisis por minuto.");
 	}
 }
