@@ -155,6 +155,31 @@
 .file-action-button.danger:hover {
   border-color: #d58a90;
 }
+.inline-file-preview {
+  max-width: 100%;
+  margin-top: 14px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.inline-pdf-preview iframe {
+  display: block;
+  width: 100%;
+  height: 390px;
+  border: 0;
+  background: #fff;
+}
+.inline-image-preview {
+  max-height: 420px;
+}
+.inline-image-preview img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto;
+  object-fit: contain;
+}
 :root[data-theme='dark'] .file-card {
   border-color: #3d5274;
   background: #0e182a;
@@ -933,6 +958,15 @@
   .file-actions {
     width: 100%;
     justify-content: flex-end;
+  }
+  .file-actions button {
+    flex: 1 1 auto;
+  }
+  .inline-pdf-preview iframe {
+    height: 330px;
+  }
+  .inline-image-preview {
+    max-height: 350px;
   }
   .history-stats {
     grid-template-columns: repeat(2, 1fr);
