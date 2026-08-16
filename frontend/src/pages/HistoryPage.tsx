@@ -8,6 +8,7 @@ import { Results } from '../components/organisms/Results'
 import { ThemeToggle } from '../components/atoms/ThemeToggle'
 import { ErrorState } from '../components/molecules/ErrorState'
 import { BottomNav } from '../components/atoms/BottomNav'
+import { AppFooter } from '../components/atoms/AppFooter'
 
 type HistoryPageProps = {
   theme: Theme
@@ -141,6 +142,7 @@ export function HistoryDetail({ id, theme, onToggleTheme, onNavigate, onReanalyz
         onReanalyze={() => onReanalyzeFromRecord(record)}
         onNavigate={onNavigate}
       />
+      <AppFooter />
     </main>
   )
 }

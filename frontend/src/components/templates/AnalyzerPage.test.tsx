@@ -23,5 +23,7 @@ describe('AnalyzerPage', () => {
     expect(markup).toContain('<form')
     expect(markup).toContain('type="submit"')
     expect(markup).toContain('Analizar con IA')
+    expect(markup).toContain('Proyecto académico desarrollado para CoderCUP IA 2026')
+    expect(markup).not.toContain('Tu CV se utiliza únicamente para realizar este análisis.')
   })
 })

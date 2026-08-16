@@ -9,6 +9,7 @@ import { AnalysisStepper, ANALYSIS_STEPS } from '../molecules/AnalysisStepper'
 import { FileUploadCard } from '../molecules/FileUploadCard'
 import { Results } from '../organisms/Results'
 import { IMAGE_TYPES, MAX_FILE_SIZE, MAX_JOB_DESCRIPTION_LENGTH, PDF_TYPES } from '../../lib/constants/app'
+import { AppFooter } from '../atoms/AppFooter'
 
 export type AnalyzerInitialOffer = {
   mode: AnalysisMode
@@ -257,7 +258,7 @@ export function AnalyzerPage({ theme, onToggleTheme, onNavigate, initialOffer = 
           onNavigate={onNavigate}
         />
       )}
-      {!result && <p className="privacy-note"><span>✦</span> Tu CV se utiliza únicamente para realizar este análisis.</p>}
+      <AppFooter />
       {!result && <BottomNav active="analyze" onNavigate={onNavigate} />}
     </main>
   )

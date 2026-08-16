@@ -7,6 +7,7 @@ import { ThemeToggle } from '../atoms/ThemeToggle'
 import { BottomNav } from '../atoms/BottomNav'
 import { EmptyState } from '../molecules/EmptyState'
 import { ErrorState } from '../molecules/ErrorState'
+import { AppFooter } from '../atoms/AppFooter'
 
 type HistoryScreenProps = {
   records: AnalysisSummary[]
@@ -145,6 +146,7 @@ export function HistoryScreen({
       )}
 
       <button className="new-analysis-button" type="button" onClick={onAnalyze}><span>+</span> Nueva evaluación</button>
+      <AppFooter />
       <BottomNav active="history" onNavigate={onNavigate} onNewAnalysis={onAnalyze} />
     </main>
   )

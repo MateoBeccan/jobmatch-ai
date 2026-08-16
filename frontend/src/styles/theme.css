@@ -211,9 +211,16 @@ body,
 :root[data-theme='dark'] .dropzone-copy small,
 :root[data-theme='dark'] .browse-label,
 :root[data-theme='dark'] .image-picker small,
-:root[data-theme='dark'] .field-footer,
-:root[data-theme='dark'] .privacy-note {
+:root[data-theme='dark'] .field-footer {
   color: #99a9c0;
+}
+
+:root[data-theme='dark'] .app-footer {
+  color: #99a9c0;
+}
+
+:root[data-theme='dark'] .app-footer span:not(:last-child)::after {
+  color: #53637b;
 }
 
 :root[data-theme='dark'] .offer-card textarea {
