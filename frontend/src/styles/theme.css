@@ -243,6 +243,22 @@ body,
   background: #351c2a;
 }
 
+:root[data-theme='dark'] .ai-privacy-notice {
+  border-color: #345a85;
+  color: #d6e4ff;
+  background: #111f35;
+}
+
+:root[data-theme='dark'] .ai-privacy-notice p,
+:root[data-theme='dark'] .analysis-consent-note {
+  color: #b2bfd2;
+}
+
+:root[data-theme='dark'] .ai-privacy-icon {
+  color: #071326;
+  background: var(--blue);
+}
+
 :root[data-theme='dark'] .submit-button,
 :root[data-theme='dark'] .route-status button,
 :root[data-theme='dark'] .primary-action {
