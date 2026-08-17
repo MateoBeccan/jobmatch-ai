@@ -147,6 +147,7 @@ public class AnalysisService {
 				aiResult.requirements().stream()
 						.map(requirement -> new RequirementResponse(
 								requirement.name(),
+								requirement.category().name().toLowerCase(Locale.ROOT),
 								requirement.status().name().toLowerCase(Locale.ROOT),
 								requirement.evidence()
 						))

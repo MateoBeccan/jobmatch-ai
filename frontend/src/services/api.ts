@@ -10,6 +10,7 @@ import type {
   JobSearchProfile,
   JobSearchResponse,
   JobSeniority,
+  RequirementCategory,
   RequirementMatch,
   RequirementStatus,
   ScoreBreakdown,
@@ -61,13 +62,14 @@ function normalizeRequirements(value: unknown): RequirementMatch[] | undefined {
     if (!item || typeof item !== 'object') return false
     const record = item as Record<string, unknown>
     return typeof record.name === 'string'
+      && (record.category === undefined || record.category === null || typeof record.category === 'string')
       && isRequirementStatus(record.status)
       && (record.evidence === undefined || record.evidence === null || typeof record.evidence === 'string')
   })
   if (!valid) throw new Error('El análisis devolvió requisitos con un formato inválido.')
 
-  return (value as Array<{ name: string; status: RequirementStatus; evidence?: string | null }>)
-    .map(({ name, status, evidence }) => ({ name, status, evidence: evidence ?? undefined }))
+  return (value as Array<{ name: string; category?: string | null; status: RequirementStatus; evidence?: string | null }>)
+    .map(({ name, category, status, evidence }) => ({ name, category: (category ?? undefined) as RequirementCategory | undefined, status, evidence: evidence ?? undefined }))
 }
 
 function normalizeBreakdown(value: unknown): ScoreBreakdown | undefined {

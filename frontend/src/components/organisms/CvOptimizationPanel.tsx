@@ -1,10 +1,11 @@
+import { memo } from 'react'
 import type { CvSuggestion } from '../../lib/types/types'
 
 type CvOptimizationPanelProps = {
   suggestions: CvSuggestion[]
 }
 
-export function CvOptimizationPanel({ suggestions }: CvOptimizationPanelProps) {
+export const CvOptimizationPanel = memo(function CvOptimizationPanel({ suggestions }: CvOptimizationPanelProps) {
   if (suggestions.length === 0) return null
 
   return (
@@ -29,4 +30,4 @@ export function CvOptimizationPanel({ suggestions }: CvOptimizationPanelProps) {
       </ol>
     </section>
   )
-}
+})

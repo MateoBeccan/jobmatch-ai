@@ -3,8 +3,11 @@ export type Theme = 'light' | 'dark'
 
 export type RequirementStatus = 'match' | 'partial' | 'missing'
 
+export type RequirementCategory = 'mandatory_technical' | 'experience_seniority' | 'desirable' | 'complementary'
+
 export type RequirementMatch = {
   name: string
+  category?: RequirementCategory
   status: RequirementStatus
   evidence?: string
 }

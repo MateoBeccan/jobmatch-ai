@@ -27,6 +27,7 @@ function isRequirements(value: unknown) {
   return value.every((item) => {
     if (!isRecord(item)) return false
     return typeof item.name === 'string'
+      && (item.category === undefined || typeof item.category === 'string')
       && isRequirementStatus(item.status)
       && (item.evidence === undefined || typeof item.evidence === 'string')
   })

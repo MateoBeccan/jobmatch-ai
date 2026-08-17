@@ -1,8 +1,10 @@
+import { memo } from 'react'
+
 type InterviewQuestionsPanelProps = {
   questions: string[]
 }
 
-export function InterviewQuestionsPanel({ questions }: InterviewQuestionsPanelProps) {
+export const InterviewQuestionsPanel = memo(function InterviewQuestionsPanel({ questions }: InterviewQuestionsPanelProps) {
   if (questions.length === 0) return null
 
   return (
@@ -15,4 +17,4 @@ export function InterviewQuestionsPanel({ questions }: InterviewQuestionsPanelPr
       </ul>
     </section>
   )
-}
+})

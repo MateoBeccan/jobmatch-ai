@@ -34,7 +34,6 @@ function App() {
     setInitialOffer({
       mode: record.mode,
       jobDescription: record.jobDescription,
-      cvFileName: record.cvFileName,
     })
     navigate('/analizar')
   }

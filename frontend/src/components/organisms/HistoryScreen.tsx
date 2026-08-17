@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import type { CSSProperties } from 'react'
 import type { AnalysisSummary, HistorySort, ScoreRange, Theme } from '../../lib/types/types'
 import { formatHistoryDate, getScoreClass } from '../../lib/helpers/format'
@@ -7,6 +7,7 @@ import { ThemeToggle } from '../atoms/ThemeToggle'
 import { BottomNav } from '../atoms/BottomNav'
 import { EmptyState } from '../molecules/EmptyState'
 import { ErrorState } from '../molecules/ErrorState'
+import { ConfirmDialog } from '../molecules/ConfirmDialog'
 import { AppFooter } from '../atoms/AppFooter'
 
 type HistoryScreenProps = {
@@ -49,8 +50,18 @@ export function HistoryScreen({
   const [query, setQuery] = useState('')
   const [range, setRange] = useState<ScoreRange>('all')
   const [sort, setSort] = useState<HistorySort>('date-desc')
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
 
   const stats = useMemo(() => computeHistoryStats(records), [records])
+
+  const requestDelete = useCallback((id: string) => setPendingDeleteId(id), [])
+
+  const confirmDelete = useCallback(async () => {
+    if (pendingDeleteId) {
+      await onDelete(pendingDeleteId)
+      setPendingDeleteId(null)
+    }
+  }, [pendingDeleteId, onDelete])
 
   const filtered = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
@@ -131,11 +142,11 @@ export function HistoryScreen({
         <>
           {grouped ? (
             <>
-              <HistoryGroup title="Recientes" records={grouped.recent} allRecords={records} onOpen={onOpenRecord} onCompare={onCompare} onDelete={onDelete} emptyMessage="No hay análisis recientes que coincidan con tu búsqueda." />
-              <HistoryGroup title="Anteriores" records={grouped.older} allRecords={records} onOpen={onOpenRecord} onCompare={onCompare} onDelete={onDelete} emptyMessage="No hay análisis anteriores que coincidan con tu búsqueda." older />
+              <HistoryGroup title="Recientes" records={grouped.recent} allRecords={records} onOpen={onOpenRecord} onCompare={onCompare} requestDelete={requestDelete} emptyMessage="No hay análisis recientes que coincidan con tu búsqueda." />
+              <HistoryGroup title="Anteriores" records={grouped.older} allRecords={records} onOpen={onOpenRecord} onCompare={onCompare} requestDelete={requestDelete} emptyMessage="No hay análisis anteriores que coincidan con tu búsqueda." older />
             </>
           ) : (
-            <HistoryGroup title="Todos los análisis" records={filtered} allRecords={records} onOpen={onOpenRecord} onCompare={onCompare} onDelete={onDelete} emptyMessage="No hay análisis que coincidan." />
+            <HistoryGroup title="Todos los análisis" records={filtered} allRecords={records} onOpen={onOpenRecord} onCompare={onCompare} requestDelete={requestDelete} emptyMessage="No hay análisis que coincidan." />
           )}
           {hasMore && (
             <button className="load-more-button" type="button" disabled={loadingMore} onClick={onLoadMore}>
@@ -148,6 +159,14 @@ export function HistoryScreen({
       <button className="new-analysis-button" type="button" onClick={onAnalyze}><span>+</span> Nueva evaluación</button>
       <AppFooter />
       <BottomNav active="history" onNavigate={onNavigate} onNewAnalysis={onAnalyze} />
+      <ConfirmDialog
+        open={pendingDeleteId !== null}
+        title="Eliminar análisis"
+        message="¿Eliminar este análisis? No se puede deshacer."
+        confirmLabel="Eliminar"
+        onConfirm={() => void confirmDelete()}
+        onCancel={() => setPendingDeleteId(null)}
+      />
     </main>
   )
 }
@@ -167,12 +186,12 @@ type HistoryGroupProps = {
   allRecords: AnalysisSummary[]
   onOpen: (id: string) => void
   onCompare: (previousId: string, currentId: string) => void
-  onDelete: (id: string) => Promise<void>
+  requestDelete: (id: string) => void
   emptyMessage: string
   older?: boolean
 }
 
-function HistoryGroup({ title, records, allRecords, onOpen, onCompare, onDelete, emptyMessage, older = false }: HistoryGroupProps) {
+function HistoryGroup({ title, records, allRecords, onOpen, onCompare, requestDelete, emptyMessage, older = false }: HistoryGroupProps) {
   return (
     <section className={`history-section ${older ? 'older-section' : ''}`}>
       <h2>{title}</h2>
@@ -189,7 +208,7 @@ function HistoryGroup({ title, records, allRecords, onOpen, onCompare, onDelete,
                 comparablePreviousId={previous?.id}
                 onOpen={() => onOpen(record.id)}
                 onCompare={comparablePreviousId => onCompare(comparablePreviousId, record.id)}
-                onDelete={() => onDelete(record.id)}
+                onDelete={() => requestDelete(record.id)}
               />
             )
           })}
@@ -218,16 +237,10 @@ type HistoryItemProps = {
   comparablePreviousId?: string
   onOpen: () => void
   onCompare: (previousId: string) => void
-  onDelete: () => Promise<void>
+  onDelete: () => void
 }
 
 function HistoryItem({ role, company, cvFileName, cvVersion, date, score, previousScore, comparablePreviousId, onOpen, onCompare, onDelete }: HistoryItemProps) {
-  const confirmDelete = () => {
-    if (window.confirm('¿Eliminar este análisis? No se puede deshacer.')) {
-      void onDelete()
-    }
-  }
-
   return (
     <article className={`history-item ${getScoreClass(score)}`}>
       <div className="history-item-copy">
@@ -246,7 +259,7 @@ function HistoryItem({ role, company, cvFileName, cvVersion, date, score, previo
           <button className="history-compare" type="button" aria-label={`Comparar ${cvVersion} con la versión anterior`} onClick={() => onCompare(comparablePreviousId)}>Comparar</button>
         )}
         <button className="history-arrow" type="button" aria-label={`Abrir análisis de ${role}`} onClick={onOpen}>→</button>
-        <button className="history-delete" type="button" aria-label={`Eliminar análisis de ${role}`} onClick={confirmDelete}>×</button>
+        <button className="history-delete" type="button" aria-label={`Eliminar análisis de ${role}`} onClick={onDelete}>×</button>
       </div>
     </article>
   )

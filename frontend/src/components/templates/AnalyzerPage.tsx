@@ -19,7 +19,6 @@ import { formatFileSize } from '../../lib/helpers/format'
 export type AnalyzerInitialOffer = {
   mode: AnalysisMode
   jobDescription: string
-  cvFileName: string
 }
 
 type AnalyzerPageProps = {
@@ -46,6 +45,7 @@ export function AnalyzerPage({ theme, onToggleTheme, onNavigate, initialOffer = 
   const cvInputRef = useRef<HTMLInputElement>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)
   const analysisAbortRef = useRef<AbortController | null>(null)
+  const resultsRef = useRef<HTMLDivElement>(null)
 
   const hasOffer = mode === 'text' ? jobDescription.trim().length > 0 : jobImage !== null
   const currentStep = !cvFile ? 'cv' : !hasOffer ? 'offer' : 'analysis'
@@ -54,6 +54,12 @@ export function AnalyzerPage({ theme, onToggleTheme, onNavigate, initialOffer = 
   useEffect(() => {
     if (initialOffer) onInitialOfferConsumed?.()
   }, [initialOffer, onInitialOfferConsumed])
+
+  useEffect(() => {
+    if (result) {
+      resultsRef.current?.focus()
+    }
+  }, [result])
 
   function validateFile(file: File, kind: 'cv' | 'image') {
     if (file.size > MAX_FILE_SIZE) {
@@ -122,17 +128,19 @@ export function AnalyzerPage({ theme, onToggleTheme, onNavigate, initialOffer = 
     }
   }
 
-  function resetForm() {
+  function resetForm(keepCv = false) {
     analysisAbortRef.current?.abort()
     analysisAbortRef.current = null
     setLoadingPhase('idle')
-    setCvFile(null)
+    if (!keepCv) {
+      setCvFile(null)
+      if (cvInputRef.current) cvInputRef.current.value = ''
+    }
     setJobImage(null)
     setJobDescription('')
     setResult(null)
     setError(null)
     setIsDragging(false)
-    if (cvInputRef.current) cvInputRef.current.value = ''
     if (imageInputRef.current) imageInputRef.current.value = ''
   }
 
@@ -191,8 +199,8 @@ export function AnalyzerPage({ theme, onToggleTheme, onNavigate, initialOffer = 
   return (
     <main className={`page-shell ${result ? 'has-results' : ''}`}>
       <header className="app-header">
-        <button className="back-button" type="button" aria-label="Nueva evaluación" onClick={resetForm}>←</button>
-        <button className="app-title" type="button" onClick={resetForm}>CV Matcher</button>
+        <button className="back-button" type="button" aria-label="Nueva evaluación" onClick={() => resetForm()}>←</button>
+        <button className="app-title" type="button" onClick={() => resetForm()}>CV Matcher</button>
         <div className="desktop-brand">JobMatch <b>AI</b></div>
         <nav className="top-links" aria-label="Navegación principal">
           <button className="active" type="button" aria-current="page" onClick={() => onNavigate('/analizar')}>Analizar CV</button>
@@ -213,9 +221,6 @@ export function AnalyzerPage({ theme, onToggleTheme, onNavigate, initialOffer = 
       <form className="workspace" aria-busy={isLoading} aria-describedby={error ? 'form-error' : undefined} onSubmit={(event) => void handleSubmit(event)}>
         <section className="form-card candidate-card">
           <div className="section-label-row"><span className="step-number">01</span><h2>Documento del candidato</h2></div>
-          {initialOffer?.cvFileName && !cvFile && (
-            <p className="reuse-note">CV del análisis anterior: <b>{initialOffer.cvFileName}</b>. Volvé a subirlo para reanalizar.</p>
-          )}
           <FileUploadCard
             file={cvFile ? { name: cvFile.name, size: cvFile.size } : null}
             isDragging={isDragging}
@@ -289,15 +294,17 @@ export function AnalyzerPage({ theme, onToggleTheme, onNavigate, initialOffer = 
       </form>
 
       {result && (
-        <Results
-          result={result}
-          onReset={resetForm}
-          onReanalyze={() => void runAnalysis()}
-          onNavigate={onNavigate}
-        />
+        <div ref={resultsRef} tabIndex={-1}>
+          <Results
+            result={result}
+            onReset={() => resetForm(true)}
+            onReanalyze={() => void runAnalysis()}
+            onNavigate={onNavigate}
+          />
+        </div>
       )}
       <AppFooter />
-      {!result && <BottomNav active="analyze" onNavigate={onNavigate} />}
+      <BottomNav active="analyze" onNavigate={onNavigate} />
     </main>
   )
 }

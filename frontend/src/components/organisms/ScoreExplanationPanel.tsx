@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import type { ScoreExplanation } from '../../lib/types/types'
 
 type ScoreExplanationPanelProps = {
@@ -10,7 +11,7 @@ const FACTOR_ICONS: Record<ScoreExplanation['factors'][number]['type'], string> 
   missing: '✕',
 }
 
-export function ScoreExplanationPanel({ explanation }: ScoreExplanationPanelProps) {
+export const ScoreExplanationPanel = memo(function ScoreExplanationPanel({ explanation }: ScoreExplanationPanelProps) {
   return (
     <section className="results-panel score-explanation-panel" aria-label="Por qué obtuviste este resultado">
       <h2>¿Por qué obtuve este resultado?</h2>
@@ -25,4 +26,4 @@ export function ScoreExplanationPanel({ explanation }: ScoreExplanationPanelProp
       </ul>
     </section>
   )
-}
+})

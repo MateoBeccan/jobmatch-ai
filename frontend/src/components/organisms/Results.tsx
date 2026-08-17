@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { ScoreRing } from '../atoms/ScoreRing'
 import { BottomNav } from '../atoms/BottomNav'
 import { AnalysisStepper, ANALYSIS_STEPS } from '../molecules/AnalysisStepper'
@@ -34,7 +35,9 @@ export function Results({ result, onReset, onReanalyze, onNavigate }: ResultsPro
       : 'Hay oportunidades para mejorar'
   const requirements = result.requirements ?? []
   const breakdownChips = BREAKDOWN_LABELS.filter(({ key }) => typeof result.breakdown?.[key] === 'number')
-  const suggestions = buildCvSuggestions(result)
+  const suggestions = useMemo(() => buildCvSuggestions(result), [result])
+  const explanation = useMemo(() => buildScoreExplanation(result), [result])
+  const structuredRecommendations = useMemo(() => toStructuredRecommendations(result.recommendations), [result.recommendations])
 
   const scrollToOptimization = () => {
     document.getElementById('optimizar-cv')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
@@ -69,9 +72,9 @@ export function Results({ result, onReset, onReanalyze, onNavigate }: ResultsPro
       </div>
 
       <div className="results-stack">
-        <ScoreExplanationPanel explanation={buildScoreExplanation(result)} />
+        <ScoreExplanationPanel explanation={explanation} />
         <RequirementsSection requirements={requirements} />
-        <RecommendationList recommendations={toStructuredRecommendations(result.recommendations)} />
+        <RecommendationList recommendations={structuredRecommendations} />
         <CvOptimizationPanel suggestions={suggestions} />
         <InterviewQuestionsPanel questions={result.interviewQuestions} />
         {result.jobSearchProfile && (
