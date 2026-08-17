@@ -733,6 +733,17 @@ describe('api', () => {
     }))
   })
 
+  it('ensureBackendReady resolves when Spring Boot health returns UP with groups', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({
+      status: 'UP',
+      groups: ['liveness', 'readiness'],
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(ensureBackendReady()).resolves.toBeUndefined()
+    expect(fetchMock).toHaveBeenCalledOnce()
+  })
+
   it('ensureBackendReady retries after a failed health request and resolves on UP', async () => {
     const fetchMock = vi.fn()
       .mockRejectedValueOnce(new TypeError('network failed'))

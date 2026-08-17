@@ -168,7 +168,7 @@ function isAbortError(error: unknown) {
 }
 
 function isHealthUpBody(value: unknown) {
-  return isObjectRecord(value) && Object.keys(value).length === 1 && value.status === 'UP'
+  return isObjectRecord(value) && value.status === 'UP'
 }
 
 function delayWithAbort(ms: number, signal?: AbortSignal) {
