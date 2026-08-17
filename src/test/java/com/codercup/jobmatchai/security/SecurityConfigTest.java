@@ -2,6 +2,7 @@ package com.codercup.jobmatchai.security;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -12,6 +13,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 @SpringBootTest(properties = {
@@ -37,6 +39,15 @@ class SecurityConfigTest {
 		mockMvc.perform(multipart("/api/analyze"))
 				.andExpect(status().isBadRequest())
 				.andExpect(jsonPath("$.message").value("El archivo del CV no puede estar vacio."));
+	}
+
+	@Test
+	void jobSearchIsPublicWithoutAuthentication() throws Exception {
+		mockMvc.perform(post("/api/jobs/search")
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("{}"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.code").value("INVALID_JOB_SEARCH_REQUEST"));
 	}
 
 	@Test

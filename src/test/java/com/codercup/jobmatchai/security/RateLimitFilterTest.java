@@ -97,6 +97,34 @@ class RateLimitFilterTest {
 	}
 
 	@Test
+	void jobsEndpointHasIndependentBucketFromAnalyze() throws Exception {
+		authenticateAnonymously();
+
+		for (int index = 0; index < REQUESTS_PER_MINUTE; index++) {
+			assertThat(performJobsRequest("198.51.100.25", "203.0.113.10").getStatus())
+					.isEqualTo(HttpStatus.OK.value());
+		}
+
+		assertTooManyRequests(performJobsRequest("198.51.100.25", "203.0.113.10"));
+		assertThat(performAnalyzeRequest("198.51.100.25", "203.0.113.10").getStatus())
+				.isEqualTo(HttpStatus.OK.value());
+	}
+
+	@Test
+	void analyzeEndpointHasIndependentBucketFromJobs() throws Exception {
+		authenticateAnonymously();
+
+		for (int index = 0; index < REQUESTS_PER_MINUTE; index++) {
+			assertThat(performAnalyzeRequest("198.51.100.25", "203.0.113.10").getStatus())
+					.isEqualTo(HttpStatus.OK.value());
+		}
+
+		assertTooManyRequests(performAnalyzeRequest("198.51.100.25", "203.0.113.10"));
+		assertThat(performJobsRequest("198.51.100.25", "203.0.113.10").getStatus())
+				.isEqualTo(HttpStatus.OK.value());
+	}
+
+	@Test
 	void differentIpHasIndependentCounter() throws Exception {
 		authenticateAnonymously();
 
@@ -120,12 +148,37 @@ class RateLimitFilterTest {
 
 		MockHttpServletResponse response = performAnalyzeRequest("198.51.100.25", "203.0.113.10");
 
+		assertAnalyzeTooManyRequests(response);
+	}
+
+	@Test
+	void jobsTooManyRequestsResponseIncludesSpecificMessage() throws Exception {
+		authenticateAnonymously();
+
+		for (int index = 0; index < REQUESTS_PER_MINUTE; index++) {
+			performJobsRequest("198.51.100.25", "203.0.113.10");
+		}
+
+		MockHttpServletResponse response = performJobsRequest("198.51.100.25", "203.0.113.10");
+
 		assertTooManyRequests(response);
+		assertThat(response.getContentAsString()).contains("Se supero el limite de busquedas de ofertas por minuto.");
 	}
 
 	private MockHttpServletResponse performAnalyzeRequest(String remoteAddr, String cfConnectingIp)
 			throws ServletException, IOException {
 		MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/analyze");
+		return performRequest(request, remoteAddr, cfConnectingIp);
+	}
+
+	private MockHttpServletResponse performJobsRequest(String remoteAddr, String cfConnectingIp)
+			throws ServletException, IOException {
+		MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/jobs/search");
+		return performRequest(request, remoteAddr, cfConnectingIp);
+	}
+
+	private MockHttpServletResponse performRequest(MockHttpServletRequest request, String remoteAddr, String cfConnectingIp)
+			throws ServletException, IOException {
 		request.setRemoteAddr(remoteAddr);
 		if (cfConnectingIp != null) {
 			request.addHeader("CF-Connecting-IP", cfConnectingIp);
@@ -149,6 +202,10 @@ class RateLimitFilterTest {
 		assertThat(response.getStatus()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS.value());
 		assertThat(response.getHeader("Retry-After")).isEqualTo("60");
 		assertThat(response.getContentAsString()).contains("\"code\":\"RATE_LIMIT_EXCEEDED\"");
+	}
+
+	private void assertAnalyzeTooManyRequests(MockHttpServletResponse response) throws Exception {
+		assertTooManyRequests(response);
 		assertThat(response.getContentAsString()).contains("Se supero el limite de analisis por minuto.");
 	}
 }
