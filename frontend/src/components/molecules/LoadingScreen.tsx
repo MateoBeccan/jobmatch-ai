@@ -10,17 +10,55 @@ const LOADING_MESSAGES = [
 ]
 const LOADING_PROGRESS = [22, 46, 72, 92]
 
-export function LoadingScreen() {
+type LoadingScreenProps = {
+  phase: 'preparing' | 'analyzing'
+}
+
+export function LoadingScreen({ phase }: LoadingScreenProps) {
   const [activeStep, setActiveStep] = useState(0)
+  const isPreparing = phase === 'preparing'
   const progress = LOADING_PROGRESS[activeStep]
 
   useEffect(() => {
+    setActiveStep(0)
+    if (phase === 'preparing') return undefined
+
     const timer = window.setInterval(() => {
       setActiveStep((currentStep) => Math.min(currentStep + 1, LOADING_STEPS.length - 1))
     }, 1900)
 
     return () => window.clearInterval(timer)
-  }, [])
+  }, [phase])
+
+  if (isPreparing) {
+    return (
+      <main className="loading-shell">
+        <header className="loading-header">JobMatch <b>AI</b></header>
+        <section className="loading-card" aria-live="polite">
+          <div className="loading-visual" aria-hidden="true">
+            <div className="loading-orbit loading-orbit-one" />
+            <div className="loading-orbit loading-orbit-two" />
+            <div className="document-preview">
+              <span className="document-fold" />
+              <span className="document-line document-line-long" />
+              <span className="document-line" />
+              <span className="document-line document-line-short" />
+              <span className="document-line" />
+              <span className="document-line document-line-medium" />
+              <span className="scan-beam" />
+            </div>
+            <span className="loading-pulse pulse-one" />
+            <span className="loading-pulse pulse-two" />
+            <span className="loading-pulse pulse-three" />
+          </div>
+          <AnalysisStepper steps={ANALYSIS_STEPS} current="analysis" />
+          <p className="loading-kicker">PREPARANDO SERVICIO</p>
+          <h1>Preparando el servidor...</h1>
+          <p className="loading-copy">El servicio puede tardar unos segundos en iniciar después de un período de inactividad.</p>
+        </section>
+      </main>
+    )
+  }
 
   return (
     <main className="loading-shell">

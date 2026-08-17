@@ -54,6 +54,14 @@ describe('toUserFacingAnalysisError', () => {
     expect(toUserFacingAnalysisError(new ApiRequestError('http://localhost:8080', 0, 'CONNECTION_ERROR')).message)
       .not.toContain('localhost')
   })
+
+  it('maps backend startup timeout to a friendly retryable error', () => {
+    expect(toUserFacingAnalysisError(new ApiRequestError('startup', 0, 'BACKEND_STARTUP_TIMEOUT'))).toEqual({
+      title: 'El servidor tardó demasiado en iniciar',
+      message: 'No pudimos preparar el servicio de análisis. Intentá nuevamente en unos instantes.',
+      retryable: true,
+    })
+  })
 })
 
 describe('toUserFacingJobSearchError', () => {

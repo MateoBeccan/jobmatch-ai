@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { DragEvent, FormEvent } from 'react'
-import { createAnalysis } from '../../services/api'
+import { createAnalysis, ensureBackendReady } from '../../services/api'
 import { toUserFacingAnalysisError } from '../../services/errorMessages'
 import type { AnalysisErrorView } from '../../services/errorMessages'
 import type { AnalysisMode, AnalysisResponse, Theme } from '../../lib/types/types'
@@ -30,6 +30,8 @@ type AnalyzerPageProps = {
   onInitialOfferConsumed?: () => void
 }
 
+type LoadingPhase = 'idle' | 'preparing' | 'analyzing'
+
 export function AnalyzerPage({ theme, onToggleTheme, onNavigate, initialOffer = null, onInitialOfferConsumed }: AnalyzerPageProps) {
   const [cvFile, setCvFile] = useState<File | null>(null)
   const [jobImage, setJobImage] = useState<File | null>(null)
@@ -38,7 +40,7 @@ export function AnalyzerPage({ theme, onToggleTheme, onNavigate, initialOffer = 
   const [result, setResult] = useState<AnalysisResponse | null>(null)
   const [error, setError] = useState<AnalysisErrorView | null>(null)
   const [errorKind, setErrorKind] = useState<'validation' | 'analysis'>('validation')
-  const [isLoading, setIsLoading] = useState(false)
+  const [loadingPhase, setLoadingPhase] = useState<LoadingPhase>('idle')
   const [isDragging, setIsDragging] = useState(false)
   const [versionCount, setVersionCount] = useState(1)
   const cvInputRef = useRef<HTMLInputElement>(null)
@@ -47,6 +49,7 @@ export function AnalyzerPage({ theme, onToggleTheme, onNavigate, initialOffer = 
 
   const hasOffer = mode === 'text' ? jobDescription.trim().length > 0 : jobImage !== null
   const currentStep = !cvFile ? 'cv' : !hasOffer ? 'offer' : 'analysis'
+  const isLoading = loadingPhase !== 'idle'
 
   useEffect(() => {
     if (initialOffer) onInitialOfferConsumed?.()
@@ -122,6 +125,7 @@ export function AnalyzerPage({ theme, onToggleTheme, onNavigate, initialOffer = 
   function resetForm() {
     analysisAbortRef.current?.abort()
     analysisAbortRef.current = null
+    setLoadingPhase('idle')
     setCvFile(null)
     setJobImage(null)
     setJobDescription('')
@@ -136,11 +140,13 @@ export function AnalyzerPage({ theme, onToggleTheme, onNavigate, initialOffer = 
     if (!cvFile) return
     setError(null)
     setResult(null)
-    setIsLoading(true)
     analysisAbortRef.current?.abort()
     const controller = new AbortController()
     analysisAbortRef.current = controller
     try {
+      setLoadingPhase('preparing')
+      await ensureBackendReady(controller.signal)
+      setLoadingPhase('analyzing')
       const record = await createAnalysis(cvFile, mode, jobDescription.trim(), jobImage, `CV v${versionCount}`, controller.signal)
       setVersionCount((current) => current + 1)
       setResult(record.result)
@@ -149,8 +155,10 @@ export function AnalyzerPage({ theme, onToggleTheme, onNavigate, initialOffer = 
       setErrorKind('analysis')
       setError(toUserFacingAnalysisError(requestError))
     } finally {
-      if (analysisAbortRef.current === controller) analysisAbortRef.current = null
-      setIsLoading(false)
+      if (analysisAbortRef.current === controller) {
+        analysisAbortRef.current = null
+        setLoadingPhase('idle')
+      }
     }
   }
 
@@ -178,7 +186,7 @@ export function AnalyzerPage({ theme, onToggleTheme, onNavigate, initialOffer = 
     await runAnalysis()
   }
 
-  if (isLoading) return <LoadingScreen />
+  if (isLoading) return <LoadingScreen phase={loadingPhase} />
 
   return (
     <main className={`page-shell ${result ? 'has-results' : ''}`}>
