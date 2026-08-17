@@ -4,7 +4,7 @@ Plataforma web que analiza la compatibilidad entre un CV y una oferta laboral us
 
 **Frontend:** React 19 + TypeScript + Vite + Tailwind CSS  
 **Backend:** Spring Boot 4.1 + Java 21 + H2 + Spring Security  
-**Despliegue:** Docker + Vercel (frontend) + GitHub Actions CI  
+**Despliegue:** Docker + Vercel (frontend) + Render ( Backend) + GitHub Actions CI  
 
 ---
 
