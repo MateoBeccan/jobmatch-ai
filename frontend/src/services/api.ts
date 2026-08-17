@@ -5,6 +5,8 @@ import type {
   AnalysisMode,
   AnalysisResponse,
   HistoryRecord,
+  JobSearchProfile,
+  JobSeniority,
   RequirementMatch,
   RequirementStatus,
   ScoreBreakdown,
@@ -33,6 +35,14 @@ function isStringArray(value: unknown): value is string[] {
 
 function isRequirementStatus(value: unknown): value is RequirementStatus {
   return value === 'match' || value === 'partial' || value === 'missing'
+}
+
+function isJobSeniority(value: unknown): value is JobSeniority {
+  return value === 'TRAINEE'
+    || value === 'JUNIOR'
+    || value === 'MID'
+    || value === 'SENIOR'
+    || value === 'UNSPECIFIED'
 }
 
 function normalizeRequirements(value: unknown): RequirementMatch[] | undefined {
@@ -68,6 +78,35 @@ function normalizeBreakdown(value: unknown): ScoreBreakdown | undefined {
   }, {} as ScoreBreakdown)
 }
 
+function normalizeJobSearchProfile(value: unknown, required = false): JobSearchProfile | undefined {
+  if (value === undefined || value === null) {
+    if (required) throw new Error('El analisis devolvio un perfil de busqueda laboral invalido.')
+    return undefined
+  }
+  if (typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error('El analisis devolvio un perfil de busqueda laboral invalido.')
+  }
+
+  const record = value as Record<string, unknown>
+  if (typeof record.role !== 'string' || !isJobSeniority(record.seniority) || !isStringArray(record.keywords)) {
+    throw new Error('El analisis devolvio un perfil de busqueda laboral invalido.')
+  }
+
+  const role = record.role.trim()
+  const keywords = record.keywords.map((keyword) => keyword.trim())
+  if (role.length === 0 || role.length > 80
+    || keywords.length < 3 || keywords.length > 6
+    || keywords.some((keyword) => keyword.length === 0 || keyword.length > 50)) {
+    throw new Error('El analisis devolvio un perfil de busqueda laboral invalido.')
+  }
+
+  return {
+    role,
+    seniority: record.seniority,
+    keywords,
+  }
+}
+
 function withDerivedRequirements(response: AnalysisResponse): AnalysisResponse {
   if (response.requirements) return response
   const requirements: RequirementMatch[] = [
@@ -77,7 +116,7 @@ function withDerivedRequirements(response: AnalysisResponse): AnalysisResponse {
   return { ...response, requirements }
 }
 
-function normalizeAnalysisResponse(response: AnalysisResponse): AnalysisResponse {
+function normalizeAnalysisResponse(response: AnalysisResponse, requireJobSearchProfile = false): AnalysisResponse {
   if (!response || typeof response.matchPercentage !== 'number' || response.matchPercentage < 0 || response.matchPercentage > 100
     || !isStringArray(response.matchingSkills)
     || !isStringArray(response.missingSkills)
@@ -90,6 +129,7 @@ function normalizeAnalysisResponse(response: AnalysisResponse): AnalysisResponse
     ...response,
     requirements: normalizeRequirements(response.requirements),
     breakdown: normalizeBreakdown(response.breakdown),
+    jobSearchProfile: normalizeJobSearchProfile(response.jobSearchProfile, requireJobSearchProfile),
   })
 }
 
@@ -236,7 +276,7 @@ export async function analyzeCV(
     { method: 'POST', body: formData, signal },
     'No se pudo completar el análisis.',
   )
-  return normalizeAnalysisResponse(response)
+  return normalizeAnalysisResponse(response, true)
 }
 
 export async function createAnalysis(
@@ -262,7 +302,7 @@ export async function createAnalysis(
     { method: 'POST', body: formData, signal },
     'No se pudo completar el análisis.',
   )
-  const result = normalizeAnalysisResponse(response)
+  const result = normalizeAnalysisResponse(response, true)
   return saveHistoryRecord(buildHistoryRecord(cvFile, mode, jobDescription, cvVersion, result))
 }
 

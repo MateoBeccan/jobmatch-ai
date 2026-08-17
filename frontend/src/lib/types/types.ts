@@ -16,6 +16,19 @@ export type ScoreBreakdown = {
   complementary?: number
 }
 
+export type JobSeniority =
+  | 'TRAINEE'
+  | 'JUNIOR'
+  | 'MID'
+  | 'SENIOR'
+  | 'UNSPECIFIED'
+
+export type JobSearchProfile = {
+  role: string
+  seniority: JobSeniority
+  keywords: string[]
+}
+
 export type ScoreFactorType = 'positive' | 'partial' | 'missing'
 
 export type ScoreFactor = {
@@ -52,6 +65,7 @@ export type AnalysisResponse = {
   interviewQuestions: string[]
   requirements?: RequirementMatch[]
   breakdown?: ScoreBreakdown
+  jobSearchProfile?: JobSearchProfile
 }
 
 export type AnalysisSummary = {

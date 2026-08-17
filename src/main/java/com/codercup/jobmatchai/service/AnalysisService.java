@@ -1,6 +1,7 @@
 package com.codercup.jobmatchai.service;
 
 import com.codercup.jobmatchai.dto.AnalysisResponse;
+import com.codercup.jobmatchai.dto.JobSearchProfileResponse;
 import com.codercup.jobmatchai.dto.RequirementResponse;
 import com.codercup.jobmatchai.dto.ScoreBreakdownResponse;
 import com.codercup.jobmatchai.dto.internal.GeminiAnalysisResult;
@@ -155,6 +156,11 @@ public class AnalysisService {
 						score.breakdown().experienceSeniority(),
 						score.breakdown().desirable(),
 						score.breakdown().complementary()
+				),
+				new JobSearchProfileResponse(
+						aiResult.jobSearchProfile().role(),
+						aiResult.jobSearchProfile().seniority(),
+						aiResult.jobSearchProfile().keywords()
 				)
 		);
 	}
