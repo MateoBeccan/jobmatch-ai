@@ -100,3 +100,73 @@ function rateLimitMessage(retryAfterSeconds?: number) {
 
   return 'Realizaste varios análisis en poco tiempo. Esperá aproximadamente un minuto e intentá nuevamente.'
 }
+export function toUserFacingJobSearchError(error: unknown): AnalysisErrorView {
+  if (!(error instanceof ApiRequestError)) {
+    return {
+      title: 'No pudimos buscar ofertas',
+      message: 'No pudimos buscar ofertas en este momento.',
+      retryable: true,
+    }
+  }
+
+  switch (error.code) {
+    case 'INVALID_JOB_SEARCH_REQUEST':
+      return {
+        title: 'No pudimos realizar la busqueda',
+        message: 'No pudimos realizar la busqueda con este perfil.',
+        retryable: false,
+      }
+    case 'JOB_SEARCH_INVALID_RESPONSE':
+      return {
+        title: 'Respuesta inesperada',
+        message: 'El servicio de ofertas devolvio una respuesta inesperada.',
+        retryable: true,
+      }
+    case 'JOB_SEARCH_UNAVAILABLE':
+      return {
+        title: 'Ofertas temporalmente no disponibles',
+        message: 'Las ofertas no estan disponibles en este momento. Proba nuevamente mas tarde.',
+        retryable: true,
+      }
+    case 'JOB_SEARCH_TIMEOUT':
+    case 'FRONTEND_TIMEOUT':
+      return {
+        title: 'La busqueda tardo demasiado',
+        message: 'La busqueda de ofertas tardo demasiado. Proba nuevamente.',
+        retryable: true,
+      }
+    case 'CONNECTION_ERROR':
+      return {
+        title: 'No pudimos conectarnos',
+        message: 'No pudimos conectarnos al servicio de ofertas.',
+        retryable: true,
+      }
+    case 'RATE_LIMIT_EXCEEDED':
+      return {
+        title: 'Limite temporal alcanzado',
+        message: jobSearchRateLimitMessage(error.retryAfterSeconds),
+        retryable: false,
+      }
+    case 'CONFIGURATION_ERROR':
+      return {
+        title: 'Busqueda no disponible',
+        message: 'La busqueda de ofertas no esta disponible temporalmente.',
+        retryable: false,
+      }
+    case 'INTERNAL_ERROR':
+    default:
+      return {
+        title: 'No pudimos buscar ofertas',
+        message: 'No pudimos buscar ofertas en este momento.',
+        retryable: true,
+      }
+  }
+}
+
+function jobSearchRateLimitMessage(retryAfterSeconds?: number) {
+  if (retryAfterSeconds && retryAfterSeconds > 0) {
+    return `Realizaste varias busquedas en poco tiempo. Espera ${retryAfterSeconds} segundos antes de intentar nuevamente.`
+  }
+
+  return 'Realizaste varias busquedas en poco tiempo. Espera un momento antes de intentar nuevamente.'
+}
