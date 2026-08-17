@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { analyzeCV, ApiRequestError, createAnalysis, deleteAnalysis, getAnalyses, getAnalysis } from './api'
+import { analyzeCV, ApiRequestError, createAnalysis, deleteAnalysis, getAnalyses, getAnalysis, searchJobs } from './api'
 import { getHistory, saveHistoryRecord } from '../lib/storage/historyStorage'
-import type { AnalysisResponse, HistoryRecord } from '../lib/types/types'
+import type { AnalysisResponse, HistoryRecord, JobSearchProfile, JobSearchResponse } from '../lib/types/types'
 
 const analysisResponse: AnalysisResponse = {
   matchPercentage: 82,
@@ -22,6 +22,32 @@ const analysisResponse: AnalysisResponse = {
 
 const HISTORY_STORAGE_KEY = 'jobmatch-ai-history'
 
+const jobSearchProfile: JobSearchProfile = {
+  role: 'Java Backend Developer',
+  seniority: 'JUNIOR',
+  keywords: ['Java', 'Spring Boot', 'SQL', 'REST API'],
+}
+
+const jobSearchResponse: JobSearchResponse = {
+  provider: 'JOBICY',
+  count: 1,
+  jobs: [
+    {
+      id: '150845',
+      title: 'Full Stack Developer - Java & React',
+      company: 'Example',
+      location: 'LATAM',
+      snippet: 'Java and Spring Boot role',
+      salary: null,
+      employmentType: 'Full-Time',
+      updatedAt: '2026-08-16T14:51:50+00:00',
+      url: 'https://jobicy.com/jobs/full-stack-java-react',
+      source: 'Jobicy',
+      matchedKeywords: ['Java', 'Spring Boot'],
+    },
+  ],
+}
+
 describe('api', () => {
   let nextId: number
   let storage: MemoryStorage
@@ -37,6 +63,7 @@ describe('api', () => {
 
   afterEach(() => {
     vi.useRealTimers()
+    vi.unstubAllEnvs()
     vi.restoreAllMocks()
   })
 
@@ -581,6 +608,112 @@ describe('api', () => {
 
     expect(fetchMock).toHaveBeenCalledOnce()
     expect(fetchMock.mock.calls[0][0]).toBe('http://localhost:8080/api/analyze')
+  })
+
+  it('searchJobs posts the exact backend contract and no analysis details', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(jobSearchResponse))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await searchJobs(jobSearchProfile, 'LATAM')
+
+    expect(fetchMock).toHaveBeenCalledWith('http://localhost:8080/api/jobs/search', expect.objectContaining({
+      method: 'POST',
+      headers: expect.objectContaining({
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      }),
+    }))
+    const init = fetchMock.mock.calls[0][1] as RequestInit
+    expect(JSON.parse(init.body as string)).toEqual({
+      role: 'Java Backend Developer',
+      seniority: 'JUNIOR',
+      keywords: ['Java', 'Spring Boot', 'SQL', 'REST API'],
+      location: 'LATAM',
+    })
+    expect(init.body).not.toContain('cv')
+    expect(init.body).not.toContain('cvFile')
+    expect(init.body).not.toContain('cvText')
+    expect(init.body).not.toContain('jobDescription')
+    expect(init.body).not.toContain('personalData')
+    expect(init.body).not.toContain('matchingSkills')
+    expect(init.body).not.toContain('missingSkills')
+  })
+
+  it('searchJobs normalizes a valid response and optional null fields', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(jobSearchResponse)))
+
+    await expect(searchJobs(jobSearchProfile, 'Argentina')).resolves.toEqual(jobSearchResponse)
+  })
+
+  it('searchJobs accepts zero results', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ provider: 'JOBICY', count: 0, jobs: [] })))
+
+    await expect(searchJobs(jobSearchProfile, 'Global')).resolves.toEqual({ provider: 'JOBICY', count: 0, jobs: [] })
+  })
+
+  it('searchJobs rejects inconsistent counts and invalid jobs arrays', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(jsonResponse({ provider: 'JOBICY', count: 2, jobs: [] })))
+    await expect(searchJobs(jobSearchProfile, 'Argentina')).rejects.toThrow(/formato invalido|formato inválido/)
+
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(jsonResponse({ provider: 'JOBICY', count: 0, jobs: {} })))
+    await expect(searchJobs(jobSearchProfile, 'Argentina')).rejects.toThrow(/formato invalido|formato inválido/)
+  })
+
+  it('searchJobs rejects invalid title, matchedKeywords, and non HTTPS URLs', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(jsonResponse({
+      ...jobSearchResponse,
+      jobs: [{ ...jobSearchResponse.jobs[0], title: ' ' }],
+    })))
+    await expect(searchJobs(jobSearchProfile, 'Argentina')).rejects.toThrow(/formato invalido|formato inválido/)
+
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(jsonResponse({
+      ...jobSearchResponse,
+      jobs: [{ ...jobSearchResponse.jobs[0], matchedKeywords: ['Java', 123] }],
+    })))
+    await expect(searchJobs(jobSearchProfile, 'Argentina')).rejects.toThrow(/formato invalido|formato inválido/)
+
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(jsonResponse({
+      ...jobSearchResponse,
+      jobs: [{ ...jobSearchResponse.jobs[0], url: 'http://jobicy.com/jobs/insecure' }],
+    })))
+    await expect(searchJobs(jobSearchProfile, 'Argentina')).rejects.toThrow(/formato invalido|formato inválido/)
+  })
+
+  it('searchJobs preserves job search API errors and retry after', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(errorResponse(
+      503,
+      { code: 'JOB_SEARCH_UNAVAILABLE', message: 'Ofertas no disponibles.' },
+      { 'Retry-After': '30' },
+    )))
+
+    await expect(searchJobs(jobSearchProfile, 'Argentina')).rejects.toMatchObject({
+      status: 503,
+      code: 'JOB_SEARCH_UNAVAILABLE',
+      retryAfterSeconds: 30,
+      message: 'Ofertas no disponibles.',
+    })
+  })
+
+  it('searchJobs infers job search fallback error codes', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(errorResponse(504, { message: 'timeout' })))
+
+    await expect(searchJobs(jobSearchProfile, 'Argentina')).rejects.toMatchObject({
+      status: 504,
+      code: 'JOB_SEARCH_TIMEOUT',
+      message: 'timeout',
+    })
+  })
+
+  it('searchJobs mock mode rejects an already aborted signal', async () => {
+    vi.stubEnv('VITE_USE_MOCKS', 'true')
+    const controller = new AbortController()
+    controller.abort()
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(searchJobs(jobSearchProfile, 'Argentina', controller.signal))
+      .rejects.toMatchObject({ name: 'AbortError' })
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 })
 

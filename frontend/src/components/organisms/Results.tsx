@@ -6,6 +6,7 @@ import { RequirementsSection } from './RequirementsSection'
 import { RecommendationList } from './RecommendationList'
 import { CvOptimizationPanel } from './CvOptimizationPanel'
 import { InterviewQuestionsPanel } from './InterviewQuestionsPanel'
+import { JobSearchPanel } from './JobSearchPanel'
 import type { AnalysisResponse, ScoreBreakdown } from '../../lib/types/types'
 import { buildCvSuggestions, buildScoreExplanation, toStructuredRecommendations } from '../../lib/helpers/analysis'
 import { getScoreClass } from '../../lib/helpers/format'
@@ -73,6 +74,12 @@ export function Results({ result, onReset, onReanalyze, onNavigate }: ResultsPro
         <RecommendationList recommendations={toStructuredRecommendations(result.recommendations)} />
         <CvOptimizationPanel suggestions={suggestions} />
         <InterviewQuestionsPanel questions={result.interviewQuestions} />
+        {result.jobSearchProfile && (
+          <JobSearchPanel
+            key={`${result.jobSearchProfile.role}-${result.jobSearchProfile.seniority}-${result.jobSearchProfile.keywords.join('|')}`}
+            profile={result.jobSearchProfile}
+          />
+        )}
       </div>
 
       <div className="result-actions">

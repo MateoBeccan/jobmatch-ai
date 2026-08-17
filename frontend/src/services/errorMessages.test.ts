@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { ApiRequestError } from './api'
-import { toUserFacingAnalysisError } from './errorMessages'
+import { toUserFacingAnalysisError, toUserFacingJobSearchError } from './errorMessages'
 
 describe('toUserFacingAnalysisError', () => {
   it('maps rate limit errors and disables immediate retry', () => {
@@ -53,5 +53,47 @@ describe('toUserFacingAnalysisError', () => {
     expect(toUserFacingAnalysisError(new ApiRequestError('secret', 500, 'INTERNAL_ERROR')).message).not.toContain('secret')
     expect(toUserFacingAnalysisError(new ApiRequestError('http://localhost:8080', 0, 'CONNECTION_ERROR')).message)
       .not.toContain('localhost')
+  })
+})
+
+describe('toUserFacingJobSearchError', () => {
+  it('maps known job search errors without using analysis copy', () => {
+    expect(toUserFacingJobSearchError(new ApiRequestError('invalid', 400, 'INVALID_JOB_SEARCH_REQUEST'))).toMatchObject({
+      message: 'No pudimos realizar la busqueda con este perfil.',
+      retryable: false,
+    })
+    expect(toUserFacingJobSearchError(new ApiRequestError('bad', 502, 'JOB_SEARCH_INVALID_RESPONSE'))).toMatchObject({
+      message: 'El servicio de ofertas devolvio una respuesta inesperada.',
+      retryable: true,
+    })
+    expect(toUserFacingJobSearchError(new ApiRequestError('down', 503, 'JOB_SEARCH_UNAVAILABLE'))).toMatchObject({
+      message: 'Las ofertas no estan disponibles en este momento. Proba nuevamente mas tarde.',
+      retryable: true,
+    })
+    expect(toUserFacingJobSearchError(new ApiRequestError('timeout', 504, 'JOB_SEARCH_TIMEOUT'))).toMatchObject({
+      message: 'La busqueda de ofertas tardo demasiado. Proba nuevamente.',
+      retryable: true,
+    })
+  })
+
+  it('maps configuration, rate limit, connection, frontend timeout, and unknown errors', () => {
+    expect(toUserFacingJobSearchError(new ApiRequestError('config', 500, 'CONFIGURATION_ERROR'))).toMatchObject({
+      message: 'La busqueda de ofertas no esta disponible temporalmente.',
+      retryable: false,
+    })
+    expect(toUserFacingJobSearchError(new ApiRequestError('limit', 429, 'RATE_LIMIT_EXCEEDED', 45))).toMatchObject({
+      message: 'Realizaste varias busquedas en poco tiempo. Espera 45 segundos antes de intentar nuevamente.',
+      retryable: false,
+    })
+    expect(toUserFacingJobSearchError(new ApiRequestError('network', 0, 'CONNECTION_ERROR'))).toMatchObject({
+      message: 'No pudimos conectarnos al servicio de ofertas.',
+      retryable: true,
+    })
+    expect(toUserFacingJobSearchError(new ApiRequestError('timeout', 0, 'FRONTEND_TIMEOUT')).retryable).toBe(true)
+    expect(toUserFacingJobSearchError(new Error('unknown'))).toEqual({
+      title: 'No pudimos buscar ofertas',
+      message: 'No pudimos buscar ofertas en este momento.',
+      retryable: true,
+    })
   })
 })

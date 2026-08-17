@@ -29,6 +29,38 @@ export type JobSearchProfile = {
   keywords: string[]
 }
 
+export type JobSearchLocation =
+  | 'Argentina'
+  | 'LATAM'
+  | 'Global'
+
+export type JobSearchRequest = {
+  role: string
+  seniority: JobSeniority
+  keywords: string[]
+  location: JobSearchLocation
+}
+
+export type JobOffer = {
+  id: string | null
+  title: string
+  company: string | null
+  location: string | null
+  snippet: string | null
+  salary: string | null
+  employmentType: string | null
+  updatedAt: string | null
+  url: string
+  source: string
+  matchedKeywords: string[]
+}
+
+export type JobSearchResponse = {
+  provider: string
+  count: number
+  jobs: JobOffer[]
+}
+
 export type ScoreFactorType = 'positive' | 'partial' | 'missing'
 
 export type ScoreFactor = {

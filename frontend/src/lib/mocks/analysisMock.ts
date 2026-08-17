@@ -1,4 +1,4 @@
-import type { AnalysisResponse } from '../types/types'
+import type { AnalysisResponse, JobSearchResponse } from '../types/types'
 
 /**
  * Respuesta de ejemplo utilizada únicamente en desarrollo cuando
@@ -37,6 +37,39 @@ export const mockAnalysisResponse: AnalysisResponse = {
     seniority: 'JUNIOR',
     keywords: ['JavaScript', 'React', 'TypeScript', 'Git'],
   },
+}
+
+export const mockJobSearchResponse: JobSearchResponse = {
+  provider: 'JOBICY',
+  count: 2,
+  jobs: [
+    {
+      id: 'mock-1',
+      title: 'Frontend Developer - React',
+      company: 'Remote Studio',
+      location: 'LATAM',
+      snippet: 'Desarrollo de interfaces con React, TypeScript y consumo de APIs REST.',
+      salary: null,
+      employmentType: 'Full-Time',
+      updatedAt: '2026-08-16T14:51:50+00:00',
+      url: 'https://jobicy.com/jobs/mock-frontend-developer-react',
+      source: 'Jobicy',
+      matchedKeywords: ['React', 'TypeScript', 'Git'],
+    },
+    {
+      id: 'mock-2',
+      title: 'Junior React Engineer',
+      company: null,
+      location: 'Global',
+      snippet: 'Equipo remoto buscando experiencia con JavaScript, React y buenas practicas de Git.',
+      salary: 'USD 45000 - 65000 yearly',
+      employmentType: null,
+      updatedAt: null,
+      url: 'https://jobicy.com/jobs/mock-junior-react-engineer',
+      source: 'Jobicy',
+      matchedKeywords: ['JavaScript', 'React'],
+    },
+  ],
 }
 
 export function getMockEnabled(): boolean {

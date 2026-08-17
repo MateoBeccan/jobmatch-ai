@@ -1,11 +1,14 @@
-import { getMockEnabled, mockAnalysisResponse } from '../lib/mocks/analysisMock'
+import { getMockEnabled, mockAnalysisResponse, mockJobSearchResponse } from '../lib/mocks/analysisMock'
 import { deleteHistoryRecord, getHistory, getHistoryRecord, saveHistoryRecord } from '../lib/storage/historyStorage'
 import type {
   AnalysisHistoryPage,
   AnalysisMode,
   AnalysisResponse,
   HistoryRecord,
+  JobOffer,
+  JobSearchLocation,
   JobSearchProfile,
+  JobSearchResponse,
   JobSeniority,
   RequirementMatch,
   RequirementStatus,
@@ -147,6 +150,89 @@ function normalizeHistoryRecord(record: HistoryRecord & { createdAt: string | nu
   }
 }
 
+function isObjectRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function nullableString(value: unknown): string | null | undefined {
+  if (value === null) return null
+  if (typeof value === 'string') return value
+  return undefined
+}
+
+function isValidHttpsUrl(value: string) {
+  try {
+    const url = new URL(value)
+    return url.protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
+function normalizeJobOffer(value: unknown): JobOffer {
+  if (!isObjectRecord(value)) throw new Error('La búsqueda de ofertas devolvió un formato inválido.')
+
+  const id = nullableString(value.id)
+  const company = nullableString(value.company)
+  const location = nullableString(value.location)
+  const snippet = nullableString(value.snippet)
+  const salary = nullableString(value.salary)
+  const employmentType = nullableString(value.employmentType)
+  const updatedAt = nullableString(value.updatedAt)
+
+  if (id === undefined
+    || typeof value.title !== 'string' || value.title.trim().length === 0
+    || company === undefined
+    || location === undefined
+    || snippet === undefined
+    || salary === undefined
+    || employmentType === undefined
+    || updatedAt === undefined
+    || typeof value.url !== 'string' || !isValidHttpsUrl(value.url)
+    || typeof value.source !== 'string' || value.source.trim().length === 0
+    || !isStringArray(value.matchedKeywords)) {
+    throw new Error('La búsqueda de ofertas devolvió un formato inválido.')
+  }
+
+  return {
+    id,
+    title: value.title.trim(),
+    company,
+    location,
+    snippet,
+    salary,
+    employmentType,
+    updatedAt,
+    url: value.url,
+    source: value.source.trim(),
+    matchedKeywords: value.matchedKeywords,
+  }
+}
+
+function normalizeJobSearchResponse(response: unknown): JobSearchResponse {
+  if (!isObjectRecord(response)
+    || typeof response.provider !== 'string' || response.provider.trim().length === 0
+    || !Array.isArray(response.jobs)) {
+    throw new Error('La búsqueda de ofertas devolvió un formato inválido.')
+  }
+
+  if (typeof response.count !== 'number' || !Number.isInteger(response.count) || response.count < 0) {
+    throw new Error('La búsqueda de ofertas devolvió un formato inválido.')
+  }
+
+  const count = response.count
+  const jobs = response.jobs.map(normalizeJobOffer)
+  if (count !== jobs.length) {
+    throw new Error('La búsqueda de ofertas devolvió un formato inválido.')
+  }
+
+  return {
+    provider: response.provider.trim(),
+    count,
+    jobs,
+  }
+}
+
 async function mockDelay(ms = 900) {
   await new Promise((resolve) => setTimeout(resolve, ms))
 }
@@ -214,7 +300,7 @@ async function request(path: string, init: RequestInit, fallbackMessage: string)
 
   if (!response.ok) {
     const errorBody = await response.json().catch(() => null) as ApiErrorBody | null
-    const code = typeof errorBody?.code === 'string' ? errorBody.code : fallbackErrorCode(response.status)
+    const code = typeof errorBody?.code === 'string' ? errorBody.code : fallbackErrorCode(response.status, path)
     const message = typeof errorBody?.message === 'string' ? errorBody.message : fallbackMessage
     throw new ApiRequestError(message, response.status, code, retryAfterSeconds(response.headers.get('Retry-After')))
   }
@@ -228,7 +314,26 @@ function retryAfterSeconds(value: string | null) {
   return Number.isFinite(seconds) && seconds >= 0 ? seconds : undefined
 }
 
-function fallbackErrorCode(status: number) {
+function fallbackErrorCode(status: number, path: string) {
+  if (path === '/api/jobs/search') {
+    switch (status) {
+      case 400:
+        return 'INVALID_JOB_SEARCH_REQUEST'
+      case 429:
+        return 'RATE_LIMIT_EXCEEDED'
+      case 500:
+        return 'CONFIGURATION_ERROR'
+      case 502:
+        return 'JOB_SEARCH_INVALID_RESPONSE'
+      case 503:
+        return 'JOB_SEARCH_UNAVAILABLE'
+      case 504:
+        return 'JOB_SEARCH_TIMEOUT'
+      default:
+        return undefined
+    }
+  }
+
   switch (status) {
     case 400:
       return 'INVALID_REQUEST'
@@ -304,6 +409,36 @@ export async function createAnalysis(
   )
   const result = normalizeAnalysisResponse(response, true)
   return saveHistoryRecord(buildHistoryRecord(cvFile, mode, jobDescription, cvVersion, result))
+}
+
+export async function searchJobs(
+  profile: JobSearchProfile,
+  location: JobSearchLocation,
+  signal?: AbortSignal,
+): Promise<JobSearchResponse> {
+  if (getMockEnabled()) {
+    if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
+    await mockDelay(500)
+    if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
+    return mockJobSearchResponse
+  }
+
+  const response = await requestJson<unknown>(
+    '/api/jobs/search',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        role: profile.role,
+        seniority: profile.seniority,
+        keywords: profile.keywords,
+        location,
+      }),
+      signal,
+    },
+    'No pudimos buscar ofertas en este momento.',
+  )
+  return normalizeJobSearchResponse(response)
 }
 
 export async function getAnalyses(page = 0, size = 20, signal?: AbortSignal): Promise<AnalysisHistoryPage> {
