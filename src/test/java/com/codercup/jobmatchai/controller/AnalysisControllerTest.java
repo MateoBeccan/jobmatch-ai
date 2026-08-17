@@ -27,6 +27,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.codercup.jobmatchai.dto.internal.GeminiAnalysisResult;
+import com.codercup.jobmatchai.dto.internal.GeminiJobSearchProfile;
+import com.codercup.jobmatchai.dto.JobSeniority;
 import com.codercup.jobmatchai.exception.AiServiceUnavailableException;
 import com.codercup.jobmatchai.exception.ApiExceptionHandler;
 import com.codercup.jobmatchai.exception.InvalidAiResponseException;
@@ -104,7 +106,13 @@ class AnalysisControllerTest {
 				.andExpect(jsonPath("$.requirements[2].name").value("Docker"))
 				.andExpect(jsonPath("$.requirements[2].status").value("partial"))
 				.andExpect(jsonPath("$.breakdown.mandatoryTechnical").value(83))
-				.andExpect(jsonPath("$.breakdown.experienceSeniority").doesNotExist());
+				.andExpect(jsonPath("$.breakdown.experienceSeniority").doesNotExist())
+				.andExpect(jsonPath("$.jobSearchProfile.role").value("Java Backend Developer"))
+				.andExpect(jsonPath("$.jobSearchProfile.seniority").value("JUNIOR"))
+				.andExpect(jsonPath("$.jobSearchProfile.keywords[0]").value("Java"))
+				.andExpect(jsonPath("$.jobSearchProfile.keywords[1]").value("Spring Boot"))
+				.andExpect(jsonPath("$.jobSearchProfile.keywords[2]").value("SQL"))
+				.andExpect(jsonPath("$.jobSearchProfile.keywords[3]").value("REST API"));
 	}
 
 	@Test
@@ -340,7 +348,10 @@ class AnalysisControllerTest {
 				.andExpect(jsonPath("$.matchingSkills[1]").value("Spring Boot"))
 				.andExpect(jsonPath("$.missingSkills[0]").value("Docker"))
 				.andExpect(jsonPath("$.recommendations[0]").value("Destacar proyectos realizados con Spring Boot"))
-				.andExpect(jsonPath("$.interviewQuestions[0]").value("Como disenarias una API REST con Spring Boot?"));
+				.andExpect(jsonPath("$.interviewQuestions[0]").value("Como disenarias una API REST con Spring Boot?"))
+				.andExpect(jsonPath("$.jobSearchProfile.role").value("Java Backend Developer"))
+				.andExpect(jsonPath("$.jobSearchProfile.seniority").value("JUNIOR"))
+				.andExpect(jsonPath("$.jobSearchProfile.keywords[2]").value("SQL"));
 	}
 
 	@Test
@@ -573,7 +584,8 @@ class AnalysisControllerTest {
 							List.of("Java", "Spring Boot"),
 							List.of("Docker"),
 							List.of("Aprender fundamentos de Docker"),
-							List.of("Como crearias una API REST?")
+							List.of("Como crearias una API REST?"),
+							jobSearchProfile()
 					);
 				}
 
@@ -600,7 +612,8 @@ class AnalysisControllerTest {
 							List.of("Java", "Spring Boot"),
 							List.of("Docker"),
 							List.of("Destacar proyectos realizados con Spring Boot"),
-							List.of("Como disenarias una API REST con Spring Boot?")
+							List.of("Como disenarias una API REST con Spring Boot?"),
+							jobSearchProfile()
 					);
 				}
 
@@ -610,6 +623,14 @@ class AnalysisControllerTest {
 						RequirementStatus status
 				) {
 					return new RequirementAssessment(name, category, status, "Evidencia de test");
+				}
+
+				private GeminiJobSearchProfile jobSearchProfile() {
+					return new GeminiJobSearchProfile(
+							"Java Backend Developer",
+							JobSeniority.JUNIOR,
+							List.of("Java", "Spring Boot", "SQL", "REST API")
+					);
 				}
 			};
 		}

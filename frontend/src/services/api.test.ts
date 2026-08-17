@@ -13,6 +13,11 @@ const analysisResponse: AnalysisResponse = {
     { name: 'Java', status: 'match' },
     { name: 'Docker', status: 'missing' },
   ],
+  jobSearchProfile: {
+    role: 'Java Backend Developer',
+    seniority: 'JUNIOR',
+    keywords: ['Java', 'Spring Boot', 'SQL', 'REST API'],
+  },
 }
 
 const HISTORY_STORAGE_KEY = 'jobmatch-ai-history'
@@ -157,6 +162,101 @@ describe('api', () => {
     })
   })
 
+  it('preserves a valid job search profile when backend returns it', async () => {
+    const response = {
+      ...analysisResponse,
+      jobSearchProfile: {
+        role: ' Java Backend Developer ',
+        seniority: 'JUNIOR',
+        keywords: [' Java ', 'Spring Boot', 'SQL', 'REST API'],
+      },
+    }
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(response)))
+
+    await expect(analyzeCV(
+      new File(['cv'], 'cv.pdf', { type: 'application/pdf' }),
+      'text',
+      'Java developer role',
+      null,
+    )).resolves.toMatchObject({
+      jobSearchProfile: {
+        role: 'Java Backend Developer',
+        seniority: 'JUNIOR',
+        keywords: ['Java', 'Spring Boot', 'SQL', 'REST API'],
+      },
+    })
+  })
+
+  it('rejects new API analysis responses without job search profile', async () => {
+    const response = { ...analysisResponse }
+    delete response.jobSearchProfile
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(response)))
+
+    await expect(analyzeCV(
+      new File(['cv'], 'cv.pdf', { type: 'application/pdf' }),
+      'text',
+      'Java developer role',
+      null,
+    )).rejects.toThrow(/perfil de busqueda laboral/)
+  })
+
+  it('rejects invalid job search profile values from backend', async () => {
+    const response = {
+      ...analysisResponse,
+      jobSearchProfile: {
+        role: 'Java Backend Developer',
+        seniority: 'LEAD',
+        keywords: ['Java', 'Spring Boot', 'SQL'],
+      },
+    }
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(response)))
+
+    await expect(analyzeCV(
+      new File(['cv'], 'cv.pdf', { type: 'application/pdf' }),
+      'text',
+      'Java developer role',
+      null,
+    )).rejects.toThrow(/perfil de busqueda laboral/)
+  })
+
+  it('rejects job search profile with blank role from backend', async () => {
+    const response = {
+      ...analysisResponse,
+      jobSearchProfile: {
+        role: '   ',
+        seniority: 'JUNIOR',
+        keywords: ['Java', 'Spring Boot', 'SQL'],
+      },
+    }
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(response)))
+
+    await expect(analyzeCV(
+      new File(['cv'], 'cv.pdf', { type: 'application/pdf' }),
+      'text',
+      'Java developer role',
+      null,
+    )).rejects.toThrow(/perfil de busqueda laboral/)
+  })
+
+  it('rejects job search profile with fewer than three keywords from backend', async () => {
+    const response = {
+      ...analysisResponse,
+      jobSearchProfile: {
+        role: 'Java Backend Developer',
+        seniority: 'JUNIOR',
+        keywords: ['Java', 'SQL'],
+      },
+    }
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(response)))
+
+    await expect(analyzeCV(
+      new File(['cv'], 'cv.pdf', { type: 'application/pdf' }),
+      'text',
+      'Java developer role',
+      null,
+    )).rejects.toThrow(/perfil de busqueda laboral/)
+  })
+
   it('rejects invalid breakdown value types', async () => {
     const response = {
       ...analysisResponse,
@@ -299,6 +399,17 @@ describe('api', () => {
     expect(page.content.map((record) => record.id)).toEqual(['newer', 'older'])
     expect(page.totalElements).toBe(2)
     expect(page.totalPages).toBe(1)
+  })
+
+  it('keeps old local history records without job search profile compatible', () => {
+    const legacyAnalysisResponse = { ...analysisResponse }
+    delete legacyAnalysisResponse.jobSearchProfile
+    storage.setItem(HISTORY_STORAGE_KEY, JSON.stringify([
+      historyRecord({ id: 'old-record', result: legacyAnalysisResponse }),
+    ]))
+
+    expect(getHistory().map((record) => record.id)).toEqual(['old-record'])
+    expect(getHistory()[0].result.jobSearchProfile).toBeUndefined()
   })
 
   it('recovers a history record by id', async () => {

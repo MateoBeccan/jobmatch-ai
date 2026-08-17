@@ -11,6 +11,7 @@ import java.util.ArrayDeque;
 import java.util.List;
 import java.util.Queue;
 import com.codercup.jobmatchai.dto.internal.GeminiAnalysisResult;
+import com.codercup.jobmatchai.dto.JobSeniority;
 import com.codercup.jobmatchai.exception.AiQuotaExceededException;
 import com.codercup.jobmatchai.exception.AiServiceTimeoutException;
 import com.codercup.jobmatchai.exception.AnalysisConfigurationException;
@@ -52,6 +53,10 @@ class GeminiServiceTest {
 				.contains("MISSING")
 				.contains("CV con Java")
 				.contains("Oferta con Spring Boot")
+				.contains("jobSearchProfile")
+				.contains("seniority exclusivamente")
+				.contains("no debe modificar el seniority")
+				.contains("Deben estar demostrados por el CV")
 				.doesNotContain("matchPercentage")
 				.doesNotContain("60%")
 				.doesNotContain("20%")
@@ -113,6 +118,10 @@ class GeminiServiceTest {
 		assertThat(textPart.text().get())
 				.contains("La imagen adjunta contiene una oferta laboral")
 				.contains("requirements")
+				.contains("jobSearchProfile")
+				.contains("seniority exclusivamente")
+				.contains("no debe modificar el seniority")
+				.contains("No incluyas tecnologias que solo aparecen en la oferta")
 				.contains("MANDATORY_TECHNICAL")
 				.contains("CV con Java")
 				.doesNotContain("matchPercentage")
@@ -169,7 +178,8 @@ class GeminiServiceTest {
 				"matchingSkills",
 				"missingSkills",
 				"recommendations",
-				"interviewQuestions"
+				"interviewQuestions",
+				"jobSearchProfile"
 		);
 		assertThat(schema.properties().get()).doesNotContainKey("matchPercentage");
 		assertThat(schema.required()).contains(List.of(
@@ -177,7 +187,8 @@ class GeminiServiceTest {
 				"matchingSkills",
 				"missingSkills",
 				"recommendations",
-				"interviewQuestions"
+				"interviewQuestions",
+				"jobSearchProfile"
 		));
 
 		Schema requirementSchema = schema.properties().get().get("requirements").items().get();
@@ -193,6 +204,18 @@ class GeminiServiceTest {
 				"PARTIAL",
 				"MISSING"
 		));
+
+		Schema jobSearchProfileSchema = schema.properties().get().get("jobSearchProfile");
+		assertThat(jobSearchProfileSchema.required()).contains(List.of("role", "seniority", "keywords"));
+		assertThat(jobSearchProfileSchema.properties().get().get("seniority").enum_()).contains(List.of(
+				"TRAINEE",
+				"JUNIOR",
+				"MID",
+				"SENIOR",
+				"UNSPECIFIED"
+		));
+		assertThat(jobSearchProfileSchema.properties().get().get("keywords").minItems()).contains(3L);
+		assertThat(jobSearchProfileSchema.properties().get().get("keywords").maxItems()).contains(6L);
 	}
 
 	@Test
@@ -212,7 +235,12 @@ class GeminiServiceTest {
 				  "matchingSkills": ["Java"],
 				  "missingSkills": null,
 				  "recommendations": null,
-				  "interviewQuestions": null
+				  "interviewQuestions": null,
+				  "jobSearchProfile": {
+				    "role": " Java Backend Developer ",
+				    "seniority": "JUNIOR",
+				    "keywords": ["Java", "Spring Boot", "SQL", "REST API"]
+				  }
 				}
 				""");
 
@@ -224,6 +252,139 @@ class GeminiServiceTest {
 		assertThat(result.missingSkills()).isEmpty();
 		assertThat(result.recommendations()).isEmpty();
 		assertThat(result.interviewQuestions()).isEmpty();
+		assertThat(result.jobSearchProfile().role()).isEqualTo("Java Backend Developer");
+		assertThat(result.jobSearchProfile().seniority()).isEqualTo(JobSeniority.JUNIOR);
+		assertThat(result.jobSearchProfile().keywords()).containsExactly("Java", "Spring Boot", "SQL", "REST API");
+	}
+
+	@Test
+	void parseResponseRejectsNullJobSearchProfile() {
+		GeminiService geminiService = new GeminiService("test-key", "test-model", 30000, 2, 500);
+
+		assertThatThrownBy(() -> parseResponse(geminiService, responseWithProfile("null")))
+				.isInstanceOf(InvalidAiResponseException.class)
+				.hasMessage("No se pudo interpretar la respuesta del servicio de analisis.");
+	}
+
+	@Test
+	void parseResponseRejectsBlankProfileRole() {
+		GeminiService geminiService = new GeminiService("test-key", "test-model", 30000, 2, 500);
+
+		assertThatThrownBy(() -> parseResponse(geminiService, responseWithProfile("""
+				{
+				  "role": "   ",
+				  "seniority": "JUNIOR",
+				  "keywords": ["Java", "Spring Boot", "SQL"]
+				}
+				""")))
+				.isInstanceOf(InvalidAiResponseException.class)
+				.hasMessage("No se pudo interpretar la respuesta del servicio de analisis.");
+	}
+
+	@Test
+	void parseResponseRejectsUnknownProfileSeniority() {
+		GeminiService geminiService = new GeminiService("test-key", "test-model", 30000, 2, 500);
+
+		assertThatThrownBy(() -> parseResponse(geminiService, responseWithProfile("""
+				{
+				  "role": "Java Backend Developer",
+				  "seniority": "LEAD",
+				  "keywords": ["Java", "Spring Boot", "SQL"]
+				}
+				""")))
+				.isInstanceOf(InvalidAiResponseException.class)
+				.hasMessage("No se pudo interpretar la respuesta del servicio de analisis.");
+	}
+
+	@Test
+	void parseResponseRejectsNullProfileKeywords() {
+		GeminiService geminiService = new GeminiService("test-key", "test-model", 30000, 2, 500);
+
+		assertThatThrownBy(() -> parseResponse(geminiService, responseWithProfile("""
+				{
+				  "role": "Java Backend Developer",
+				  "seniority": "JUNIOR",
+				  "keywords": null
+				}
+				""")))
+				.isInstanceOf(InvalidAiResponseException.class)
+				.hasMessage("No se pudo interpretar la respuesta del servicio de analisis.");
+	}
+
+	@Test
+	void parseResponseRejectsProfileWithFewerThanThreeKeywords() {
+		GeminiService geminiService = new GeminiService("test-key", "test-model", 30000, 2, 500);
+
+		assertThatThrownBy(() -> parseResponse(geminiService, responseWithProfile("""
+				{
+				  "role": "Java Backend Developer",
+				  "seniority": "JUNIOR",
+				  "keywords": ["Java", "SQL"]
+				}
+				""")))
+				.isInstanceOf(InvalidAiResponseException.class)
+				.hasMessage("No se pudo interpretar la respuesta del servicio de analisis.");
+	}
+
+	@Test
+	void parseResponseTrimsDeduplicatesAndLimitsProfileKeywords() throws Exception {
+		GeminiService geminiService = new GeminiService("test-key", "test-model", 30000, 2, 500);
+
+		GeminiAnalysisResult result = parseResponse(geminiService, responseWithProfile("""
+				{
+				  "role": "Java Backend Developer",
+				  "seniority": "JUNIOR",
+				  "keywords": [" Java ", "java", "Spring Boot", " SQL ", "", "REST API", "Git", "MySQL", "JUnit"]
+				}
+				"""));
+
+		assertThat(result.jobSearchProfile().keywords())
+				.containsExactly("Java", "Spring Boot", "SQL", "REST API", "Git", "MySQL");
+	}
+
+	@Test
+	void parseResponseRejectsProfileWhenDeduplicationLeavesFewerThanThreeKeywords() {
+		GeminiService geminiService = new GeminiService("test-key", "test-model", 30000, 2, 500);
+
+		assertThatThrownBy(() -> parseResponse(geminiService, responseWithProfile("""
+				{
+				  "role": "Java Backend Developer",
+				  "seniority": "JUNIOR",
+				  "keywords": ["Java", " java ", "SQL"]
+				}
+				""")))
+				.isInstanceOf(InvalidAiResponseException.class)
+				.hasMessage("No se pudo interpretar la respuesta del servicio de analisis.");
+	}
+
+	@Test
+	void parseResponseRejectsProfileRoleLongerThanDefensiveLimit() {
+		GeminiService geminiService = new GeminiService("test-key", "test-model", 30000, 2, 500);
+
+		assertThatThrownBy(() -> parseResponse(geminiService, responseWithProfile("""
+				{
+				  "role": "%s",
+				  "seniority": "JUNIOR",
+				  "keywords": ["Java", "Spring Boot", "SQL"]
+				}
+				""".formatted("A".repeat(81)))))
+				.isInstanceOf(InvalidAiResponseException.class)
+				.hasMessage("No se pudo interpretar la respuesta del servicio de analisis.");
+	}
+
+	@Test
+	void parseResponseRejectsProfileKeywordLongerThanDefensiveLimit() {
+		GeminiService geminiService = new GeminiService("test-key", "test-model", 30000, 2, 500);
+
+		assertThatThrownBy(() -> parseResponse(geminiService, responseWithProfile("""
+				{
+				  "role": "Java Backend Developer",
+				  "seniority": "JUNIOR",
+				  "keywords": ["Java", "Spring Boot", "%s"]
+				}
+				""".formatted("A".repeat(51)))))
+				.isInstanceOf(InvalidAiResponseException.class)
+				.hasMessage("No se pudo interpretar la respuesta del servicio de analisis.");
 	}
 
 	@Test
@@ -279,7 +440,12 @@ class GeminiServiceTest {
 				  "matchingSkills": [],
 				  "missingSkills": [],
 				  "recommendations": [],
-				  "interviewQuestions": []
+				  "interviewQuestions": [],
+				  "jobSearchProfile": {
+				    "role": "Java Backend Developer",
+				    "seniority": "JUNIOR",
+				    "keywords": ["Java", "Spring Boot", "SQL"]
+				  }
 				}
 				"""))
 				.isInstanceOf(InvalidAiResponseException.class)
@@ -302,7 +468,12 @@ class GeminiServiceTest {
 				  "matchingSkills": [],
 				  "missingSkills": [],
 				  "recommendations": [],
-				  "interviewQuestions": []
+				  "interviewQuestions": [],
+				  "jobSearchProfile": {
+				    "role": "Java Backend Developer",
+				    "seniority": "JUNIOR",
+				    "keywords": ["Java", "Spring Boot", "SQL"]
+				  }
 				}
 				"""))
 				.isInstanceOf(InvalidAiResponseException.class)
@@ -325,7 +496,12 @@ class GeminiServiceTest {
 				  "matchingSkills": [],
 				  "missingSkills": [],
 				  "recommendations": [],
-				  "interviewQuestions": []
+				  "interviewQuestions": [],
+				  "jobSearchProfile": {
+				    "role": "Java Backend Developer",
+				    "seniority": "JUNIOR",
+				    "keywords": ["Java", "Spring Boot", "SQL"]
+				  }
 				}
 				"""))
 				.isInstanceOf(InvalidAiResponseException.class)
@@ -696,7 +872,12 @@ class GeminiServiceTest {
 				  "matchingSkills": ["Java"],
 				  "missingSkills": ["Docker"],
 				  "recommendations": ["Practicar Docker", "Destacar experiencia con Java"],
-				  "interviewQuestions": ["Pregunta 1", "Pregunta 2", "Pregunta 3"]
+				  "interviewQuestions": ["Pregunta 1", "Pregunta 2", "Pregunta 3"],
+				  "jobSearchProfile": {
+				    "role": "Java Backend Developer",
+				    "seniority": "JUNIOR",
+				    "keywords": ["Java", "Spring Boot", "SQL", "REST API"]
+				  }
 				}
 				""";
 	}
@@ -715,9 +896,34 @@ class GeminiServiceTest {
 				  "matchingSkills": [],
 				  "missingSkills": [],
 				  "recommendations": [],
-				  "interviewQuestions": []
+				  "interviewQuestions": [],
+				  "jobSearchProfile": {
+				    "role": "Java Backend Developer",
+				    "seniority": "JUNIOR",
+				    "keywords": ["Java", "Spring Boot", "SQL"]
+				  }
 				}
 				""".formatted(name, category, status, evidence);
+	}
+
+	private String responseWithProfile(String profileJson) {
+		return """
+				{
+				  "requirements": [
+				    {
+				      "name": "Java",
+				      "category": "MANDATORY_TECHNICAL",
+				      "status": "MATCH",
+				      "evidence": "Java aparece en el CV."
+				    }
+				  ],
+				  "matchingSkills": ["Java"],
+				  "missingSkills": [],
+				  "recommendations": ["Destacar Java", "Practicar entrevistas"],
+				  "interviewQuestions": ["Pregunta 1", "Pregunta 2", "Pregunta 3"],
+				  "jobSearchProfile": %s
+				}
+				""".formatted(profileJson);
 	}
 
 	private static class RetryBehaviorGeminiService extends GeminiService {

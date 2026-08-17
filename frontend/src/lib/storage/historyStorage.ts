@@ -39,6 +39,22 @@ function isBreakdown(value: unknown) {
   return keys.every((key) => value[key] === undefined || isScore(value[key]))
 }
 
+function isJobSeniority(value: unknown) {
+  return value === 'TRAINEE'
+    || value === 'JUNIOR'
+    || value === 'MID'
+    || value === 'SENIOR'
+    || value === 'UNSPECIFIED'
+}
+
+function isJobSearchProfile(value: unknown) {
+  if (value === undefined) return true
+  if (!isRecord(value)) return false
+  return typeof value.role === 'string'
+    && isJobSeniority(value.seniority)
+    && isStringArray(value.keywords)
+}
+
 function isHistoryRecord(value: unknown): value is HistoryRecord {
   if (!isRecord(value)) return false
   const result = value.result
@@ -60,6 +76,7 @@ function isHistoryRecord(value: unknown): value is HistoryRecord {
     && isStringArray(result.interviewQuestions)
     && isRequirements(result.requirements)
     && isBreakdown(result.breakdown)
+    && isJobSearchProfile(result.jobSearchProfile)
 }
 
 function readHistory(): HistoryRecord[] {

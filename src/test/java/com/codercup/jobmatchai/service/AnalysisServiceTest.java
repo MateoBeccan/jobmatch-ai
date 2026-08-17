@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.codercup.jobmatchai.dto.AnalysisResponse;
 import com.codercup.jobmatchai.dto.internal.GeminiAnalysisResult;
+import com.codercup.jobmatchai.dto.internal.GeminiJobSearchProfile;
+import com.codercup.jobmatchai.dto.JobSeniority;
 import com.codercup.jobmatchai.exception.InvalidCvContentException;
 import com.codercup.jobmatchai.scoring.MatchScoreCalculator;
 import com.codercup.jobmatchai.scoring.RequirementAssessment;
@@ -45,6 +47,10 @@ class AnalysisServiceTest {
 		assertThat(response.requirements()).extracting("status")
 				.containsExactly("match", "match", "match", "missing", "missing", "match", "missing", "match");
 		assertThat(response.breakdown()).isNotNull();
+		assertThat(response.jobSearchProfile()).isNotNull();
+		assertThat(response.jobSearchProfile().role()).isEqualTo("Java Backend Developer");
+		assertThat(response.jobSearchProfile().seniority()).isEqualTo(JobSeniority.JUNIOR);
+		assertThat(response.jobSearchProfile().keywords()).containsExactly("Java", "Spring Boot", "SQL", "REST API");
 	}
 
 	@Test
@@ -79,6 +85,8 @@ class AnalysisServiceTest {
 
 		assertThat(textResponse.matchPercentage()).isEqualTo(60);
 		assertThat(imageResponse.matchPercentage()).isEqualTo(60);
+		assertThat(textResponse.jobSearchProfile().role()).isEqualTo("Java Backend Developer");
+		assertThat(imageResponse.jobSearchProfile().role()).isEqualTo("Java Backend Developer");
 		assertThat(geminiService.textCalls()).isEqualTo(1);
 		assertThat(geminiService.imageCalls()).isEqualTo(1);
 	}
@@ -140,6 +148,11 @@ class AnalysisServiceTest {
 						"Como disenarias una API REST?",
 						"Como usaste Spring Boot?",
 						"Que experiencia tenes con Docker?"
+				),
+				new GeminiJobSearchProfile(
+						"Java Backend Developer",
+						JobSeniority.JUNIOR,
+						List.of("Java", "Spring Boot", "SQL", "REST API")
 				)
 		);
 	}

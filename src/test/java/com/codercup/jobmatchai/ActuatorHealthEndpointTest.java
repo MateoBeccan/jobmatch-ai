@@ -5,6 +5,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.codercup.jobmatchai.dto.internal.GeminiAnalysisResult;
+import com.codercup.jobmatchai.dto.internal.GeminiJobSearchProfile;
+import com.codercup.jobmatchai.dto.JobSeniority;
 import com.codercup.jobmatchai.scoring.RequirementAssessment;
 import com.codercup.jobmatchai.scoring.RequirementCategory;
 import com.codercup.jobmatchai.scoring.RequirementStatus;
@@ -62,7 +64,12 @@ class ActuatorHealthEndpointTest {
 							List.of(),
 							List.of(),
 							List.of(),
-							List.of()
+							List.of(),
+							new GeminiJobSearchProfile(
+									"Java Backend Developer",
+									JobSeniority.JUNIOR,
+									List.of("Java", "Spring Boot", "SQL")
+							)
 					);
 				}
 			};

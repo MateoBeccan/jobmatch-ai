@@ -32,6 +32,11 @@ export const mockAnalysisResponse: AnalysisResponse = {
     desirable: 50,
     complementary: 100,
   },
+  jobSearchProfile: {
+    role: 'Frontend Developer',
+    seniority: 'JUNIOR',
+    keywords: ['JavaScript', 'React', 'TypeScript', 'Git'],
+  },
 }
 
 export function getMockEnabled(): boolean {

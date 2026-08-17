@@ -8,6 +8,7 @@ public record GeminiAnalysisResult(
 		List<String> matchingSkills,
 		List<String> missingSkills,
 		List<String> recommendations,
-		List<String> interviewQuestions
+		List<String> interviewQuestions,
+		GeminiJobSearchProfile jobSearchProfile
 ) {
 }
