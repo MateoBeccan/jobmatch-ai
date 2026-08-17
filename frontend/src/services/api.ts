@@ -17,6 +17,11 @@ import type {
 
 const API_URL = (import.meta.env.VITE_API_URL ?? 'http://localhost:8080').replace(/\/$/, '')
 const REQUEST_TIMEOUT_MS = 150000
+const HEALTH_PATH = '/actuator/health'
+const WARM_UP_TIMEOUT_MS = 10000
+const BACKEND_READY_TIMEOUT_MS = 120000
+const BACKEND_READY_RETRY_DELAY_MS = 2000
+const BACKEND_READY_ATTEMPT_TIMEOUT_MS = 12000
 
 type ApiErrorBody = { code?: unknown; message?: unknown }
 
@@ -154,6 +159,66 @@ function isObjectRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+function abortError() {
+  return new DOMException('Aborted', 'AbortError')
+}
+
+function isAbortError(error: unknown) {
+  return error instanceof DOMException && error.name === 'AbortError'
+}
+
+function isHealthUpBody(value: unknown) {
+  return isObjectRecord(value) && Object.keys(value).length === 1 && value.status === 'UP'
+}
+
+function delayWithAbort(ms: number, signal?: AbortSignal) {
+  if (signal?.aborted) return Promise.reject(abortError())
+
+  return new Promise<void>((resolve, reject) => {
+    const timeout = window.setTimeout(() => {
+      signal?.removeEventListener('abort', handleAbort)
+      resolve()
+    }, ms)
+    const handleAbort = () => {
+      window.clearTimeout(timeout)
+      reject(abortError())
+    }
+
+    signal?.addEventListener('abort', handleAbort, { once: true })
+  })
+}
+
+async function fetchHealthStatus(signal: AbortSignal | undefined, timeoutMs: number) {
+  if (signal?.aborted) throw abortError()
+
+  const controller = new AbortController()
+  let timedOut = false
+  const timeout = window.setTimeout(() => {
+    timedOut = true
+    controller.abort()
+  }, timeoutMs)
+  const abortRequest = () => controller.abort()
+  signal?.addEventListener('abort', abortRequest, { once: true })
+
+  try {
+    const response = await fetch(`${API_URL}${HEALTH_PATH}`, {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+      cache: 'no-store',
+      signal: controller.signal,
+    })
+    if (!response.ok) return false
+    const body = await response.json().catch(() => null) as unknown
+    return isHealthUpBody(body)
+  } catch (error) {
+    if (isAbortError(error) && !timedOut && signal?.aborted) throw abortError()
+    return false
+  } finally {
+    window.clearTimeout(timeout)
+    signal?.removeEventListener('abort', abortRequest)
+  }
+}
+
 function nullableString(value: unknown): string | null | undefined {
   if (value === null) return null
   if (typeof value === 'string') return value
@@ -235,6 +300,47 @@ function normalizeJobSearchResponse(response: unknown): JobSearchResponse {
 
 async function mockDelay(ms = 900) {
   await new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+export async function warmUpBackend(): Promise<void> {
+  if (getMockEnabled()) return
+
+  const controller = new AbortController()
+  const timeout = window.setTimeout(() => controller.abort(), WARM_UP_TIMEOUT_MS)
+  try {
+    await fetch(`${API_URL}${HEALTH_PATH}`, {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+      cache: 'no-store',
+      signal: controller.signal,
+    })
+  } catch {
+    // This request only nudges cold infrastructure awake. User-facing flows handle readiness explicitly.
+  } finally {
+    window.clearTimeout(timeout)
+  }
+}
+
+export async function ensureBackendReady(signal?: AbortSignal): Promise<void> {
+  if (getMockEnabled()) return
+  if (signal?.aborted) throw abortError()
+
+  const deadline = Date.now() + BACKEND_READY_TIMEOUT_MS
+  while (Date.now() < deadline) {
+    const attemptTimeoutMs = Math.min(BACKEND_READY_ATTEMPT_TIMEOUT_MS, Math.max(1, deadline - Date.now()))
+    if (await fetchHealthStatus(signal, attemptTimeoutMs)) return
+    if (signal?.aborted) throw abortError()
+
+    const remainingMs = deadline - Date.now()
+    if (remainingMs <= 0) break
+    await delayWithAbort(Math.min(BACKEND_READY_RETRY_DELAY_MS, remainingMs), signal)
+  }
+
+  throw new ApiRequestError(
+    'No se pudo preparar el servicio de análisis.',
+    0,
+    'BACKEND_STARTUP_TIMEOUT',
+  )
 }
 
 function firstLine(value: string) {

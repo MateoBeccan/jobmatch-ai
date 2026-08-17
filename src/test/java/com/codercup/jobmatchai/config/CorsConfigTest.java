@@ -40,10 +40,10 @@ class CorsConfigTest {
 	}
 
 	@Test
-	void corsConfigurationDoesNotExposeActuatorHealth() throws Exception {
+	void corsConfigurationAllowsDefaultFrontendOriginForActuatorHealth() throws Exception {
 		mockMvc.perform(get("/actuator/health")
 						.header(HttpHeaders.ORIGIN, "http://localhost:5173"))
 				.andExpect(status().isOk())
-				.andExpect(header().doesNotExist(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN));
+				.andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, "http://localhost:5173"));
 	}
 }

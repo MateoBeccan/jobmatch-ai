@@ -4,6 +4,7 @@ import { HistoryPage, HistoryDetail } from './HistoryPage'
 import { normalizeRoute, parseRoute, type AppRoute } from '../routes/routes'
 import { useTheme } from '../lib/hooks/useTheme'
 import type { HistoryRecord } from '../lib/types/types'
+import { warmUpBackend } from '../services/api'
 
 function App() {
   const { theme, toggleTheme } = useTheme()
@@ -23,6 +24,10 @@ function App() {
     const handlePopState = () => setRoute(parseRoute(window.location.pathname))
     window.addEventListener('popstate', handlePopState)
     return () => window.removeEventListener('popstate', handlePopState)
+  }, [])
+
+  useEffect(() => {
+    void warmUpBackend()
   }, [])
 
   function handleReanalyzeFromRecord(record: HistoryRecord) {

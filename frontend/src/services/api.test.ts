@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { analyzeCV, ApiRequestError, createAnalysis, deleteAnalysis, getAnalyses, getAnalysis, searchJobs } from './api'
+import { analyzeCV, ApiRequestError, createAnalysis, deleteAnalysis, ensureBackendReady, getAnalyses, getAnalysis, searchJobs, warmUpBackend } from './api'
 import { getHistory, saveHistoryRecord } from '../lib/storage/historyStorage'
 import type { AnalysisResponse, HistoryRecord, JobSearchProfile, JobSearchResponse } from '../lib/types/types'
 
@@ -57,7 +57,11 @@ describe('api', () => {
     nextId = 0
     storage = new MemoryStorage()
     vi.stubGlobal('localStorage', storage)
-    vi.stubGlobal('window', { localStorage: storage })
+    vi.stubGlobal('window', {
+      localStorage: storage,
+      setTimeout: globalThis.setTimeout,
+      clearTimeout: globalThis.clearTimeout,
+    })
     vi.stubGlobal('crypto', { randomUUID: vi.fn(() => `history-${++nextId}`) })
   })
 
@@ -714,6 +718,99 @@ describe('api', () => {
     await expect(searchJobs(jobSearchProfile, 'Argentina', controller.signal))
       .rejects.toMatchObject({ name: 'AbortError' })
     expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('ensureBackendReady resolves when health returns UP JSON', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ status: 'UP' }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(ensureBackendReady()).resolves.toBeUndefined()
+
+    expect(fetchMock).toHaveBeenCalledWith('http://localhost:8080/actuator/health', expect.objectContaining({
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+      cache: 'no-store',
+    }))
+  })
+
+  it('ensureBackendReady retries after a failed health request and resolves on UP', async () => {
+    const fetchMock = vi.fn()
+      .mockRejectedValueOnce(new TypeError('network failed'))
+      .mockResolvedValueOnce(jsonResponse({ status: 'UP' }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const ready = ensureBackendReady()
+    await vi.advanceTimersByTimeAsync(2000)
+
+    await expect(ready).resolves.toBeUndefined()
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('ensureBackendReady treats invalid health JSON as not ready and retries', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({ ok: true, json: () => Promise.reject(new SyntaxError('html')) } as Response)
+      .mockResolvedValueOnce(jsonResponse({ status: 'UP' }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const ready = ensureBackendReady()
+    await vi.advanceTimersByTimeAsync(2000)
+
+    await expect(ready).resolves.toBeUndefined()
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('ensureBackendReady retries when health status is not UP', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(jsonResponse({ status: 'DOWN' }))
+      .mockResolvedValueOnce(jsonResponse({ status: 'UP' }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const ready = ensureBackendReady()
+    await vi.advanceTimersByTimeAsync(2000)
+
+    await expect(ready).resolves.toBeUndefined()
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('ensureBackendReady rejects AbortError when the signal is already aborted', async () => {
+    const controller = new AbortController()
+    controller.abort()
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(ensureBackendReady(controller.signal)).rejects.toMatchObject({ name: 'AbortError' })
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('ensureBackendReady fails with BACKEND_STARTUP_TIMEOUT after the total limit', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ status: 'DOWN' })))
+
+    const ready = ensureBackendReady()
+    const assertion = expect(ready).rejects.toMatchObject({
+      status: 0,
+      code: 'BACKEND_STARTUP_TIMEOUT',
+    })
+    await vi.advanceTimersByTimeAsync(120000)
+
+    await assertion
+  })
+
+  it('warmUpBackend does not fetch in mock mode', async () => {
+    vi.stubEnv('VITE_USE_MOCKS', 'true')
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+
+    await warmUpBackend()
+
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('warmUpBackend does not propagate health errors', async () => {
+    const fetchMock = vi.fn().mockRejectedValue(new TypeError('network failed'))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(warmUpBackend()).resolves.toBeUndefined()
+    expect(fetchMock).toHaveBeenCalledOnce()
   })
 })
 

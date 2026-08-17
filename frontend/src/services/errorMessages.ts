@@ -77,6 +77,12 @@ export function toUserFacingAnalysisError(error: unknown): AnalysisErrorView {
         message: 'El análisis superó el tiempo de espera. Intentá nuevamente.',
         retryable: true,
       }
+    case 'BACKEND_STARTUP_TIMEOUT':
+      return {
+        title: 'El servidor tardó demasiado en iniciar',
+        message: 'No pudimos preparar el servicio de análisis. Intentá nuevamente en unos instantes.',
+        retryable: true,
+      }
     case 'CONNECTION_ERROR':
       return {
         title: 'No pudimos conectarnos',
