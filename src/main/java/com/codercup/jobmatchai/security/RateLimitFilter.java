@@ -33,13 +33,14 @@ public class RateLimitFilter extends OncePerRequestFilter {
 	protected boolean shouldNotFilter(HttpServletRequest request) {
 		return !"POST".equalsIgnoreCase(request.getMethod())
 				|| !("/api/analyze".equals(request.getRequestURI())
-						|| "/api/analyses".equals(request.getRequestURI()));
+						|| "/api/analyses".equals(request.getRequestURI())
+						|| "/api/jobs/search".equals(request.getRequestURI()));
 	}
 
 	@Override
 	protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
 			throws ServletException, IOException {
-		String userId = currentUserId(request);
+		String userId = rateLimitKey(request);
 		long now = System.nanoTime();
 		RequestWindow window = windows.compute(userId, (key, current) -> {
 			if (current == null || now - current.startedAtNanos() >= TimeUnit.MINUTES.toNanos(1)) {
@@ -53,7 +54,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
 			response.setHeader("Retry-After", "60");
 			response.setContentType("application/json");
 			response.getWriter().write(
-					"{\"code\":\"RATE_LIMIT_EXCEEDED\",\"message\":\"Se supero el limite de analisis por minuto.\"}"
+					"{\"code\":\"RATE_LIMIT_EXCEEDED\",\"message\":\"" + rateLimitMessage(request) + "\"}"
 			);
 			return;
 		}
@@ -75,6 +76,18 @@ public class RateLimitFilter extends OncePerRequestFilter {
 		}
 
 		return request.getRemoteAddr();
+	}
+
+	private String rateLimitKey(HttpServletRequest request) {
+		String prefix = "/api/jobs/search".equals(request.getRequestURI()) ? "jobs:" : "analysis:";
+		return prefix + currentUserId(request);
+	}
+
+	private String rateLimitMessage(HttpServletRequest request) {
+		if ("/api/jobs/search".equals(request.getRequestURI())) {
+			return "Se supero el limite de busquedas de ofertas por minuto.";
+		}
+		return "Se supero el limite de analisis por minuto.";
 	}
 
 	private static final class RequestWindow {
