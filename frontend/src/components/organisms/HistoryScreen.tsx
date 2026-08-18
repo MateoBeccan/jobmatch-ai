@@ -4,7 +4,6 @@ import type { AnalysisSummary, HistorySort, ScoreRange, Theme } from '../../lib/
 import { formatHistoryDate, getScoreClass } from '../../lib/helpers/format'
 import { computeHistoryStats, filterByScoreRange } from '../../lib/helpers/analysis'
 import { BottomNav } from '../atoms/BottomNav'
-import { EmptyState } from '../molecules/EmptyState'
 import { ErrorState } from '../molecules/ErrorState'
 import { ConfirmDialog } from '../molecules/ConfirmDialog'
 import { AppFooter } from '../atoms/AppFooter'
@@ -85,14 +84,17 @@ export function HistoryScreen({
         older: filtered.filter((record) => currentTime - record.createdAt >= WEEK_MS),
       }
     : null
+  const hasOlderRecords = records.some((record) => currentTime - record.createdAt >= WEEK_MS)
 
   return (
     <main className="history-shell" aria-busy={loading}>
       <AppHeader active="history" theme={theme} onToggleTheme={onToggleTheme} onNavigate={onNavigate} />
 
       <section className="history-page-heading" aria-labelledby="history-title">
-        <span className="intro-kicker">Historial</span>
-        <h1 id="history-title">Historial de Análisis</h1>
+        <div className="history-title-copy">
+          <h1 id="history-title">Historial de Análisis</h1>
+          <p>Revisá tus evaluaciones anteriores y compará tu evolución.</p>
+        </div>
         <button className="menu-button" type="button" onClick={onAnalyze}>
           <img className="history-new-analysis-icon" src={newAnalysisIcon} alt="" />
           Nueva evaluación
@@ -100,43 +102,53 @@ export function HistoryScreen({
       </section>
 
       <section className="history-stats" aria-label="Estadísticas de tus análisis">
-        <HistoryStat label="Ofertas analizadas" value={String(stats.total)} />
-        <HistoryStat label="Compatibilidad promedio" value={`${stats.averageScore}%`} />
-        <HistoryStat label="Mejor resultado" value={`${stats.bestScore}%`} />
+        <HistoryStat icon="doc" label="Ofertas analizadas" value={String(stats.total)} />
+        <HistoryStat icon="gauge" label="Compatibilidad promedio" value={`${stats.averageScore}%`} />
+        <HistoryStat icon="best" label="Mejor resultado" value={`${stats.bestScore}%`} />
         {typeof stats.trendDelta === 'number' && (
-          <HistoryStat label="Tendencia" value={`${stats.trendDelta >= 0 ? '↑' : '↓'} ${Math.abs(stats.trendDelta)}%`} trend={stats.trendDelta >= 0 ? 'up' : 'down'} />
+          <HistoryStat icon="trend" label="Tendencia" value={`${stats.trendDelta >= 0 ? '↑' : '↓'} ${Math.abs(stats.trendDelta)}%`} trend={stats.trendDelta >= 0 ? 'up' : 'down'} />
         )}
       </section>
 
-      <label className="history-search">
-        <span aria-hidden="true">⌕</span>
-        <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar por rol, empresa o CV..." aria-label="Buscar análisis" />
-      </label>
-
-      <div className="history-controls">
-        <div className="history-filters" role="group" aria-label="Filtrar por score">
-          {SCORE_RANGES.map(({ value, label }) => (
-            <button key={value} type="button" aria-pressed={range === value} className={range === value ? 'active' : ''} onClick={() => setRange(value)}>{label}</button>
-          ))}
-        </div>
-        <label className="history-sort">
-          <span className="visually-hidden">Ordenar por</span>
-          <select value={sort} onChange={(event) => setSort(event.target.value as HistorySort)}>
-            {SORTS.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}
-          </select>
+      <section className="history-toolbar" aria-label="Controles de historial">
+        <label className="history-search">
+          <span aria-hidden="true">⌕</span>
+          <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar por rol, empresa o CV..." aria-label="Buscar análisis" />
         </label>
-      </div>
+
+        <div className="history-controls">
+          <div className="history-filters" role="group" aria-label="Filtrar por score">
+            {SCORE_RANGES.map(({ value, label }) => (
+              <button key={value} type="button" aria-pressed={range === value} className={range === value ? 'active' : ''} onClick={() => setRange(value)}>{label}</button>
+            ))}
+          </div>
+          <label className="history-sort">
+            <span className="visually-hidden">Ordenar por</span>
+            <select value={sort} onChange={(event) => setSort(event.target.value as HistorySort)}>
+              {SORTS.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}
+            </select>
+          </label>
+        </div>
+      </section>
 
       {loading && <div className="history-status" role="status"><span className="spinner history-spinner" /> Cargando tus análisis...</div>}
       {error && <ErrorState message={error} onRetry={onRetry} />}
 
-      {!loading && !error && filtered.length === 0 && (
-        <EmptyState
-          icon="◈"
-          title="Todavía no tenés análisis"
-          description="Analizá una oferta laboral para empezar a construir tu historial."
-          actionLabel="Nuevo análisis"
+      {!loading && !error && records.length === 0 && (
+        <HistoryEmptyState
+          imageSrc={newAnalysisIcon}
+          title="Todavía no tenés análisis guardados"
+          description="Realizá tu primera evaluación para empezar a construir tu historial."
+          actionLabel="Nueva evaluación"
           onAction={onAnalyze}
+        />
+      )}
+
+      {!loading && !error && records.length > 0 && filtered.length === 0 && (
+        <HistoryEmptyState
+          icon="⌕"
+          title="No encontramos análisis con estos filtros"
+          description="Probá cambiar la búsqueda o seleccionar Todos."
         />
       )}
 
@@ -145,7 +157,21 @@ export function HistoryScreen({
           {grouped ? (
             <>
               <HistoryGroup title="Recientes" records={grouped.recent} allRecords={records} onOpen={onOpenRecord} onCompare={onCompare} requestDelete={requestDelete} emptyMessage="No hay análisis recientes que coincidan con tu búsqueda." />
-              <HistoryGroup title="Anteriores" records={grouped.older} allRecords={records} onOpen={onOpenRecord} onCompare={onCompare} requestDelete={requestDelete} emptyMessage="No hay análisis anteriores que coincidan con tu búsqueda." older />
+              <HistoryGroup
+                title="Anteriores"
+                records={grouped.older}
+                allRecords={records}
+                onOpen={onOpenRecord}
+                onCompare={onCompare}
+                requestDelete={requestDelete}
+                emptyMessage="No hay análisis anteriores"
+                emptyTitle={hasOlderRecords ? 'No hay análisis anteriores para estos filtros' : 'No hay análisis anteriores'}
+                emptyDescription={hasOlderRecords
+                  ? 'Los análisis más antiguos no coinciden con la búsqueda o filtros actuales.'
+                  : 'Los análisis más antiguos aparecerán acá cuando existan.'}
+                emptyIcon="◷"
+                older
+              />
             </>
           ) : (
             <HistoryGroup title="Todos los análisis" records={filtered} allRecords={records} onOpen={onOpenRecord} onCompare={onCompare} requestDelete={requestDelete} emptyMessage="No hay análisis que coincidan." />
@@ -176,11 +202,41 @@ export function HistoryScreen({
   )
 }
 
-function HistoryStat({ label, value, trend }: { label: string; value: string; trend?: 'up' | 'down' }) {
+type HistoryEmptyStateProps = {
+  icon?: string
+  imageSrc?: string
+  title: string
+  description: string
+  actionLabel?: string
+  onAction?: () => void
+}
+
+function HistoryEmptyState({ icon, imageSrc, title, description, actionLabel, onAction }: HistoryEmptyStateProps) {
+  return (
+    <div className="history-empty-state">
+      {imageSrc ? <img className="history-empty-state-image" src={imageSrc} alt="" /> : <span className="history-empty-state-icon" aria-hidden="true">{icon ?? '◈'}</span>}
+      <div className="history-empty-state-copy">
+        <h3>{title}</h3>
+        <p>{description}</p>
+      </div>
+      {actionLabel && onAction && (
+        <button className="history-empty-state-action" type="button" onClick={onAction}>
+          {imageSrc && <img className="history-new-analysis-icon" src={imageSrc} alt="" />}
+          {actionLabel}
+        </button>
+      )}
+    </div>
+  )
+}
+
+function HistoryStat({ icon, label, value, trend }: { icon: 'doc' | 'gauge' | 'best' | 'trend'; label: string; value: string; trend?: 'up' | 'down' }) {
   return (
     <div className={`history-stat${trend ? ` trend ${trend}` : ''}`}>
-      <strong>{value}</strong>
-      <span>{label}</span>
+      <span className={`history-stat-icon ${icon}`} aria-hidden="true" />
+      <span className="history-stat-copy">
+        <strong>{value}</strong>
+        <span>{label}</span>
+      </span>
     </div>
   )
 }
@@ -193,10 +249,13 @@ type HistoryGroupProps = {
   onCompare: (previousId: string, currentId: string) => void
   requestDelete: (id: string) => void
   emptyMessage: string
+  emptyTitle?: string
+  emptyDescription?: string
+  emptyIcon?: string
   older?: boolean
 }
 
-function HistoryGroup({ title, records, allRecords, onOpen, onCompare, requestDelete, emptyMessage, older = false }: HistoryGroupProps) {
+function HistoryGroup({ title, records, allRecords, onOpen, onCompare, requestDelete, emptyMessage, emptyTitle, emptyDescription, emptyIcon, older = false }: HistoryGroupProps) {
   return (
     <section className={`history-section ${older ? 'older-section' : ''}`}>
       <h2>{title}</h2>
@@ -219,7 +278,17 @@ function HistoryGroup({ title, records, allRecords, onOpen, onCompare, requestDe
           })}
         </div>
       ) : (
-        <p className="history-empty">{emptyMessage}</p>
+        emptyTitle ? (
+          <div className="history-group-empty">
+            <span className="history-group-empty-icon" aria-hidden="true">{emptyIcon ?? '◈'}</span>
+            <div>
+              <h3>{emptyTitle}</h3>
+              {emptyDescription && <p>{emptyDescription}</p>}
+            </div>
+          </div>
+        ) : (
+          <p className="history-empty">{emptyMessage}</p>
+        )
       )}
     </section>
   )
@@ -246,19 +315,31 @@ type HistoryItemProps = {
 }
 
 function HistoryItem({ role, company, cvFileName, cvVersion, date, score, previousScore, comparablePreviousId, onOpen, onCompare, onDelete }: HistoryItemProps) {
+  const scoreDelta = previousScore === undefined ? undefined : score - previousScore
+  const scoreChangeState = scoreDelta === undefined ? undefined : scoreDelta > 0 ? 'up' : scoreDelta < 0 ? 'down' : 'neutral'
+  const scoreChangeIcon = scoreChangeState === 'up' ? '↑' : scoreChangeState === 'down' ? '↓' : '→'
+
   return (
     <article className={`history-item ${getScoreClass(score)}`}>
       <div className="history-item-copy">
         <h3>{role}</h3>
         <p>{company}</p>
-        <small><span aria-hidden="true">◷</span> {date} · {cvFileName} · {cvVersion}</small>
-        {previousScore !== undefined && (
-          <strong className={`score-change ${score >= previousScore ? 'up' : 'down'}`}>
-            {score >= previousScore ? '↑' : '↓'} {Math.abs(score - previousScore)} puntos desde el CV anterior
+        <small className="history-item-meta">
+          <span className="history-item-date"><span aria-hidden="true">◷</span> {date}</span>
+          <span className="history-meta-separator" aria-hidden="true">·</span>
+          <span className="history-item-cv">{cvFileName}</span>
+          <span className="history-meta-separator" aria-hidden="true">·</span>
+          <span className="history-item-version">{cvVersion}</span>
+        </small>
+        {scoreDelta !== undefined && scoreChangeState && (
+          <strong className={`score-change ${scoreChangeState}`}>
+            {scoreChangeIcon} {Math.abs(scoreDelta)} puntos desde el CV anterior
           </strong>
         )}
       </div>
-      <div className={`history-score ${getScoreClass(score)}`} role="img" aria-label={`${score}% de compatibilidad`} style={{ '--score': score } as CSSProperties}><span>{score}%</span></div>
+      <div className="history-score-zone">
+        <div className={`history-score ${getScoreClass(score)}`} role="img" aria-label={`${score}% de compatibilidad`} style={{ '--score': score } as CSSProperties}><span>{score}%</span></div>
+      </div>
       <div className="history-item-actions">
         {comparablePreviousId && (
           <button className="history-compare" type="button" aria-label={`Comparar ${cvVersion} con la versión anterior`} onClick={() => onCompare(comparablePreviousId)}>Comparar</button>
