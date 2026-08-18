@@ -96,7 +96,7 @@ export function Results({ result, onReset, onReanalyze, onNavigate }: ResultsPro
         <button type="button" className="secondary-action" onClick={onReanalyze ?? onReset}>Volver a analizar</button>
       </div>
 
-      <BottomNav active="results" onNavigate={onNavigate} onNewAnalysis={onReset} />
+      <BottomNav active="results" onNavigate={onNavigate} />
     </section>
   )
 }

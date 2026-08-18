@@ -1,4 +1,4 @@
-import { renderToStaticMarkup } from 'react-dom/server'
+﻿import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 import { HomePage } from './HomePage'
 import { BRAND_LOGO_PATH } from '../lib/constants/brand'
