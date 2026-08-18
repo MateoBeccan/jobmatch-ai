@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+﻿import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import type { Theme } from '../lib/types/types'
 import { AppFooter } from '../components/atoms/AppFooter'
@@ -13,18 +13,22 @@ type HomePageProps = {
 
 const BENEFITS = [
   {
+    kind: 'compatibility',
     title: 'Compatibilidad',
     text: 'Obtené una estimación clara del nivel de ajuste entre tu CV y la oferta.',
   },
   {
+    kind: 'skills',
     title: 'Habilidades',
     text: 'Identificá fortalezas, coincidencias técnicas y requisitos que todavía podés desarrollar.',
   },
   {
+    kind: 'recommendations',
     title: 'Recomendaciones',
     text: 'Recibí acciones concretas para mejorar tu CV y tu candidatura.',
   },
   {
+    kind: 'interview',
     title: 'Entrevista',
     text: 'Preparate con posibles preguntas relacionadas con el puesto.',
   },
@@ -35,6 +39,55 @@ const MATCH_TARGET = 87
 
 function shouldReduceMotion() {
   return typeof window !== 'undefined' && 'matchMedia' in window && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+}
+
+function BenefitVisual({ kind }: { kind: (typeof BENEFITS)[number]['kind'] }) {
+  if (kind === 'compatibility') {
+    return (
+      <div className="benefit-visual benefit-visual-compatibility">
+        <span className="benefit-gauge" aria-hidden="true">
+          <span />
+        </span>
+        <strong>Alta</strong>
+      </div>
+    )
+  }
+
+  if (kind === 'skills') {
+    return (
+      <div className="benefit-visual benefit-visual-skills">
+        <span>
+          <small>Fortaleza principal</small>
+          <strong>Backend</strong>
+        </span>
+        <span>
+          <small>A reforzar</small>
+          <strong>Docker</strong>
+        </span>
+      </div>
+    )
+  }
+
+  if (kind === 'recommendations') {
+    return (
+      <div className="benefit-visual benefit-visual-recommendations">
+        <span className="benefit-spark" aria-hidden="true">*</span>
+        <small>Sugerencia</small>
+        <strong>Sumá Docker a tus proyectos</strong>
+        <span className="benefit-impact">Impacto alto</span>
+        <span className="benefit-arrow">↗</span>
+      </div>
+    )
+  }
+
+  return (
+    <div className="benefit-visual benefit-visual-interview">
+      <span className="benefit-chat-bubble" aria-hidden="true">?</span>
+      <small>Pregunta sugerida</small>
+      <strong>¿Cómo diseñarías una API REST?</strong>
+      <span className="benefit-impact">Backend</span>
+    </div>
+  )
 }
 
 export function HomePage({ theme, onToggleTheme, onNavigate }: HomePageProps) {
@@ -225,6 +278,7 @@ export function HomePage({ theme, onToggleTheme, onNavigate }: HomePageProps) {
       <section className="home-benefits" aria-label="Beneficios principales">
         {BENEFITS.map((benefit) => (
           <article className="home-benefit-card" key={benefit.title}>
+            <BenefitVisual kind={benefit.kind} />
             <h2>{benefit.title}</h2>
             <p>{benefit.text}</p>
           </article>
@@ -323,10 +377,25 @@ export function HomePage({ theme, onToggleTheme, onNavigate }: HomePageProps) {
             </div>
           </article>
         </div>
-        <p className="home-privacy-note">Tu CV y la oferta se procesan mediante inteligencia artificial para generar el análisis.</p>
-        <button className="primary-action home-final-action" type="button" onClick={() => onNavigate('/analizar')}>
-          Analizar mi CV
-        </button>
+        <div className="home-final-cta">
+          <div className="home-final-copy">
+            <span className="intro-kicker">PROBALO CON TU CV</span>
+            <h2>¿Listo para conocer tu compatibilidad?</h2>
+            <p>Subí tu CV, agregá una oferta y recibí un análisis personalizado en segundos.</p>
+            <button className="primary-action home-final-action" type="button" onClick={() => onNavigate('/analizar')}>
+              Analizar mi CV
+            </button>
+            <p className="home-privacy-note">Análisis asistido por Google Gemini</p>
+          </div>
+          <div className="home-final-detail" aria-hidden="true">
+            <span className="home-final-ready">Todo listo</span>
+            <span className="home-final-state home-final-state-cv">✓ CV listo</span>
+            <span className="home-final-state home-final-state-offer">✓ Oferta</span>
+            <span className="home-final-state home-final-state-ai">IA preparada</span>
+            <span className="home-final-line" />
+            <span className="home-final-start">Analizar</span>
+          </div>
+        </div>
       </section>
 
       <AppFooter />

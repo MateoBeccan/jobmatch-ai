@@ -9,6 +9,7 @@ import { ErrorState } from '../molecules/ErrorState'
 import { ConfirmDialog } from '../molecules/ConfirmDialog'
 import { AppFooter } from '../atoms/AppFooter'
 import { AppHeader } from '../molecules/AppHeader'
+import newAnalysisIcon from '../../assets/navigation/new-analysis.png'
 
 type HistoryScreenProps = {
   records: AnalysisSummary[]
@@ -92,7 +93,10 @@ export function HistoryScreen({
       <section className="history-page-heading" aria-labelledby="history-title">
         <span className="intro-kicker">Historial</span>
         <h1 id="history-title">Historial de Análisis</h1>
-        <button className="menu-button" type="button" onClick={onAnalyze}>+ Nueva evaluación</button>
+        <button className="menu-button" type="button" onClick={onAnalyze}>
+          <img className="history-new-analysis-icon" src={newAnalysisIcon} alt="" />
+          Nueva evaluación
+        </button>
       </section>
 
       <section className="history-stats" aria-label="Estadísticas de tus análisis">
@@ -154,9 +158,12 @@ export function HistoryScreen({
         </>
       )}
 
-      <button className="new-analysis-button" type="button" onClick={onAnalyze}><span>+</span> Nueva evaluación</button>
+      <button className="new-analysis-button" type="button" onClick={onAnalyze}>
+        <img className="history-new-analysis-icon" src={newAnalysisIcon} alt="" />
+        Nueva evaluación
+      </button>
       <AppFooter />
-      <BottomNav active="history" onNavigate={onNavigate} onNewAnalysis={onAnalyze} />
+      <BottomNav active="history" onNavigate={onNavigate} />
       <ConfirmDialog
         open={pendingDeleteId !== null}
         title="Eliminar análisis"
