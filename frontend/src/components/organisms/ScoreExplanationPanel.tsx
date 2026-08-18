@@ -14,7 +14,12 @@ const FACTOR_ICONS: Record<ScoreExplanation['factors'][number]['type'], string> 
 export const ScoreExplanationPanel = memo(function ScoreExplanationPanel({ explanation }: ScoreExplanationPanelProps) {
   return (
     <section className="results-panel score-explanation-panel" aria-label="Por qué obtuviste este resultado">
-      <h2>¿Por qué obtuve este resultado?</h2>
+      <div className="panel-title-row">
+        <div>
+          <span className="panel-eyebrow">Resumen interpretado</span>
+          <h2>¿Por qué obtuve este resultado?</h2>
+        </div>
+      </div>
       <p className="score-explanation-summary">{explanation.summary}</p>
       <ul className="score-factor-list">
         {explanation.factors.map((factor, index) => (

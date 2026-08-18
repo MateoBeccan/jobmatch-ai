@@ -10,7 +10,13 @@ export const CvOptimizationPanel = memo(function CvOptimizationPanel({ suggestio
 
   return (
     <section className="results-panel optimization-panel" id="optimizar-cv" aria-label="Oportunidades para optimizar tu CV">
-      <h2>Optimizar mi CV</h2>
+      <div className="panel-title-row">
+        <div>
+          <span className="panel-eyebrow">Optimizacion del CV</span>
+          <h2>Cómo mejorar tu CV</h2>
+        </div>
+        <span className="panel-count">{suggestions.length} acciones</span>
+      </div>
       <p className="optimization-intro">
         {suggestions.length === 1
           ? 'Detectamos 1 oportunidad concreta de mejora.'

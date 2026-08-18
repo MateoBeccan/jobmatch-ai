@@ -18,6 +18,23 @@ describe('Results', () => {
     expect(actionsIndex).toBeGreaterThan(jobSearchIndex)
   })
 
+  it('renders the main analysis sections without changing response contracts', () => {
+    const markup = renderToStaticMarkup(
+      <Results result={analysisResponse()} onReset={vi.fn()} onNavigate={vi.fn()} />,
+    )
+
+    expect(markup).toContain('82')
+    expect(markup).toContain('Un encaje muy prometedor')
+    expect(markup).toContain('Compatibilidad estimada')
+    expect(markup).toContain('Requisitos')
+    expect(markup).toContain('Java')
+    expect(markup).toContain('Docker')
+    expect(markup).toContain('¿Qué deberías mejorar?')
+    expect(markup).toContain('Practicar Docker')
+    expect(markup).toContain('Preguntas de entrevista')
+    expect(markup).toContain('Ofertas remotas relacionadas con tu perfil')
+  })
+
   it('keeps legacy analysis responses without jobSearchProfile working', () => {
     const response = analysisResponse()
     delete response.jobSearchProfile
