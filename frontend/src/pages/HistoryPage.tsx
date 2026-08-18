@@ -5,10 +5,10 @@ import type { HistoryRecord, Theme } from '../lib/types/types'
 import { HistoryScreen } from '../components/organisms/HistoryScreen'
 import { ComparisonView } from '../components/organisms/ComparisonView'
 import { Results } from '../components/organisms/Results'
-import { ThemeToggle } from '../components/atoms/ThemeToggle'
 import { ErrorState } from '../components/molecules/ErrorState'
 import { BottomNav } from '../components/atoms/BottomNav'
 import { AppFooter } from '../components/atoms/AppFooter'
+import { AppHeader } from '../components/molecules/AppHeader'
 
 type HistoryPageProps = {
   theme: Theme
@@ -105,8 +105,8 @@ export function HistoryDetail({ id, theme, onToggleTheme, onNavigate, onReanalyz
 
   if (loading) {
     return (
-      <main className="page-shell detail-shell">
-        <header className="app-header"><div className="desktop-brand">JobMatch <b>AI</b></div><ThemeToggle theme={theme} onToggle={onToggleTheme} /></header>
+      <main className="history-shell detail-shell">
+        <AppHeader active="history" theme={theme} onToggleTheme={onToggleTheme} onNavigate={onNavigate} />
         <div className="history-status" role="status"><span className="spinner history-spinner" /> Cargando análisis...</div>
         <BottomNav active="history" onNavigate={onNavigate} />
       </main>
@@ -115,8 +115,8 @@ export function HistoryDetail({ id, theme, onToggleTheme, onNavigate, onReanalyz
 
   if (error || !record) {
     return (
-      <main className="page-shell detail-shell">
-        <header className="app-header"><div className="desktop-brand">JobMatch <b>AI</b></div><ThemeToggle theme={theme} onToggle={onToggleTheme} /></header>
+      <main className="history-shell detail-shell">
+        <AppHeader active="history" theme={theme} onToggleTheme={onToggleTheme} onNavigate={onNavigate} />
         <ErrorState message={error || 'No se encontró el análisis.'} onRetry={() => onNavigate('/historial')} />
         <BottomNav active="history" onNavigate={onNavigate} />
       </main>
@@ -124,17 +124,8 @@ export function HistoryDetail({ id, theme, onToggleTheme, onNavigate, onReanalyz
   }
 
   return (
-    <main className="page-shell detail-shell">
-      <header className="app-header">
-        <button className="back-button" type="button" aria-label="Volver al historial" onClick={() => onNavigate('/historial')}>←</button>
-        <button className="app-title" type="button" onClick={() => onNavigate('/historial')}>Historial</button>
-        <div className="desktop-brand">JobMatch <b>AI</b></div>
-        <nav className="top-links" aria-label="Navegación principal">
-          <button type="button" onClick={() => onNavigate('/analizar')}>Analizar CV</button>
-          <button className="active" type="button" aria-current="page" onClick={() => onNavigate('/historial')}>Historial</button>
-        </nav>
-        <ThemeToggle theme={theme} onToggle={onToggleTheme} />
-      </header>
+    <main className="history-shell detail-shell">
+      <AppHeader active="history" theme={theme} onToggleTheme={onToggleTheme} onNavigate={onNavigate} />
       <p className="detail-meta">{record.role} · {record.company} · {record.cvFileName} · {record.cvVersion}</p>
       <Results
         result={record.result}

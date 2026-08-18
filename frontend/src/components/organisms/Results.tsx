@@ -19,11 +19,11 @@ type ResultsProps = {
   onNavigate: (route: string) => void
 }
 
-const BREAKDOWN_LABELS: Array<{ key: keyof ScoreBreakdown; label: string }> = [
-  { key: 'mandatoryTechnical', label: 'Técnicos' },
-  { key: 'experienceSeniority', label: 'Experiencia' },
-  { key: 'desirable', label: 'Deseables' },
-  { key: 'complementary', label: 'Complementarios' },
+const BREAKDOWN_LABELS: Array<{ key: keyof ScoreBreakdown; label: string; caption: string }> = [
+  { key: 'mandatoryTechnical', label: 'Técnicos', caption: 'Requisitos clave' },
+  { key: 'experienceSeniority', label: 'Experiencia', caption: 'Nivel y trayectoria' },
+  { key: 'desirable', label: 'Deseables', caption: 'Plus de la oferta' },
+  { key: 'complementary', label: 'Complementarios', caption: 'Señales extra' },
 ]
 
 export function Results({ result, onReset, onReanalyze, onNavigate }: ResultsProps) {
@@ -56,15 +56,21 @@ export function Results({ result, onReset, onReanalyze, onNavigate }: ResultsPro
       <AnalysisStepper steps={ANALYSIS_STEPS} current="result" complete />
 
       <div className="score-row">
-        <ScoreRing value={result.matchPercentage} />
+        <div className="score-ring-column">
+          <ScoreRing value={result.matchPercentage} />
+        </div>
         <div className="score-summary">
           <span className="summary-label">LECTURA GENERAL</span>
           <h2 className={scoreClass}>{scoreTitle}</h2>
           <p>Este porcentaje es una estimación basada en la información de tu CV y los requisitos de la oferta.</p>
           {breakdownChips.length > 0 && (
             <div className="breakdown-chips" aria-label="Desglose por categoría">
-              {breakdownChips.map(({ key, label }) => (
-                <span key={key} className="breakdown-chip"><b>{result.breakdown![key]}%</b>{label}</span>
+              {breakdownChips.map(({ key, label, caption }) => (
+                <span key={key} className="breakdown-chip">
+                  <b>{result.breakdown![key]}%</b>
+                  <span>{label}</span>
+                  <small>{caption}</small>
+                </span>
               ))}
             </div>
           )}

@@ -3,12 +3,12 @@ import type { CSSProperties } from 'react'
 import type { AnalysisSummary, HistorySort, ScoreRange, Theme } from '../../lib/types/types'
 import { formatHistoryDate, getScoreClass } from '../../lib/helpers/format'
 import { computeHistoryStats, filterByScoreRange } from '../../lib/helpers/analysis'
-import { ThemeToggle } from '../atoms/ThemeToggle'
 import { BottomNav } from '../atoms/BottomNav'
 import { EmptyState } from '../molecules/EmptyState'
 import { ErrorState } from '../molecules/ErrorState'
 import { ConfirmDialog } from '../molecules/ConfirmDialog'
 import { AppFooter } from '../atoms/AppFooter'
+import { AppHeader } from '../molecules/AppHeader'
 
 type HistoryScreenProps = {
   records: AnalysisSummary[]
@@ -87,15 +87,13 @@ export function HistoryScreen({
 
   return (
     <main className="history-shell" aria-busy={loading}>
-      <header className="history-header">
-        <h1>Historial de Análisis</h1>
-        <div className="history-actions">
-          <button className="menu-button" type="button" aria-label="Crear nuevo análisis" onClick={onAnalyze}>
-            <span className="menu-icon">☰</span><span className="menu-label">+ Nueva evaluación</span>
-          </button>
-          <ThemeToggle theme={theme} onToggle={onToggleTheme} />
-        </div>
-      </header>
+      <AppHeader active="history" theme={theme} onToggleTheme={onToggleTheme} onNavigate={onNavigate} />
+
+      <section className="history-page-heading" aria-labelledby="history-title">
+        <span className="intro-kicker">Historial</span>
+        <h1 id="history-title">Historial de Análisis</h1>
+        <button className="menu-button" type="button" onClick={onAnalyze}>+ Nueva evaluación</button>
+      </section>
 
       <section className="history-stats" aria-label="Estadísticas de tus análisis">
         <HistoryStat label="Ofertas analizadas" value={String(stats.total)} />

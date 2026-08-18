@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { AnalyzerPage, type AnalyzerInitialOffer } from '../components/templates/AnalyzerPage'
 import { HistoryPage, HistoryDetail } from './HistoryPage'
+import { HomePage } from './HomePage'
 import { normalizeRoute, parseRoute, type AppRoute } from '../routes/routes'
 import { useTheme } from '../lib/hooks/useTheme'
 import type { HistoryRecord } from '../lib/types/types'
@@ -21,6 +22,11 @@ function App() {
   }
 
   useEffect(() => {
+    const normalized = normalizeRoute(window.location.pathname)
+    if (window.location.pathname !== normalized) {
+      window.history.replaceState({}, '', normalized)
+      setRoute(parseRoute(normalized))
+    }
     const handlePopState = () => setRoute(parseRoute(window.location.pathname))
     window.addEventListener('popstate', handlePopState)
     return () => window.removeEventListener('popstate', handlePopState)
@@ -36,6 +42,16 @@ function App() {
       jobDescription: record.jobDescription,
     })
     navigate('/analizar')
+  }
+
+  if (route.name === 'home') {
+    return (
+      <HomePage
+        theme={theme}
+        onToggleTheme={toggleTheme}
+        onNavigate={navigate}
+      />
+    )
   }
 
   if (route.name === 'history') {

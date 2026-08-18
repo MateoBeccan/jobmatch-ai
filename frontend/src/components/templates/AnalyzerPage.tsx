@@ -5,7 +5,7 @@ import { toUserFacingAnalysisError } from '../../services/errorMessages'
 import type { AnalysisErrorView } from '../../services/errorMessages'
 import type { AnalysisMode, AnalysisResponse, Theme } from '../../lib/types/types'
 import { BottomNav } from '../atoms/BottomNav'
-import { ThemeToggle } from '../atoms/ThemeToggle'
+import { AppHeader } from '../molecules/AppHeader'
 import { LoadingScreen } from '../molecules/LoadingScreen'
 import { AnalysisStepper, ANALYSIS_STEPS } from '../molecules/AnalysisStepper'
 import { FileUploadCard } from '../molecules/FileUploadCard'
@@ -197,21 +197,12 @@ export function AnalyzerPage({ theme, onToggleTheme, onNavigate, initialOffer = 
   if (isLoading) return <LoadingScreen phase={loadingPhase} />
 
   return (
-    <main className={`page-shell ${result ? 'has-results' : ''}`}>
-      <header className="app-header">
-        <button className="back-button" type="button" aria-label="Nueva evaluación" onClick={() => resetForm()}>←</button>
-        <button className="app-title" type="button" onClick={() => resetForm()}>CV Matcher</button>
-        <div className="desktop-brand">JobMatch <b>AI</b></div>
-        <nav className="top-links" aria-label="Navegación principal">
-          <button className="active" type="button" aria-current="page" onClick={() => onNavigate('/analizar')}>Analizar CV</button>
-          <button type="button" onClick={() => onNavigate('/historial')}>Historial</button>
-        </nav>
-        <ThemeToggle theme={theme} onToggle={onToggleTheme} />
-      </header>
+    <main className={`page-shell analyzer-shell ${result ? 'has-results' : ''}`}>
+      <AppHeader active="analyze" theme={theme} onToggleTheme={onToggleTheme} onNavigate={onNavigate} />
 
       {!result && (
         <section className="evaluation-intro" id="analizar">
-          <span className="intro-kicker">CV Matcher</span>
+          <span className="intro-kicker">JobMatch AI</span>
           <h1>Nueva Evaluación</h1>
           <p>Subí el currículum del candidato y describí el perfil buscado para obtener un análisis detallado de compatibilidad impulsado por IA.</p>
           <AnalysisStepper steps={ANALYSIS_STEPS} current={currentStep} />
@@ -294,7 +285,7 @@ export function AnalyzerPage({ theme, onToggleTheme, onNavigate, initialOffer = 
       </form>
 
       {result && (
-        <div ref={resultsRef} tabIndex={-1}>
+        <div className="results-region" ref={resultsRef} tabIndex={-1}>
           <Results
             result={result}
             onReset={() => resetForm(true)}

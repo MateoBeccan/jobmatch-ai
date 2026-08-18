@@ -25,10 +25,24 @@ export function RequirementsSection({ requirements }: RequirementsSectionProps) 
   const [filter, setFilter] = useState<RequirementFilter>('all')
   const visible = filter === 'all' ? requirements : requirements.filter((requirement) => requirement.status === filter)
   const countFor = (status: RequirementFilter) => status === 'all' ? requirements.length : requirements.filter((requirement) => requirement.status === status).length
+  const matchedCount = countFor('match')
+  const partialCount = countFor('partial')
+  const missingCount = countFor('missing')
 
   return (
     <section className="results-panel requirements-section" aria-label="Requisitos de la oferta">
-      <h2>Requisitos</h2>
+      <div className="panel-title-row">
+        <div>
+          <span className="panel-eyebrow">Skills y requisitos</span>
+          <h2>Requisitos</h2>
+        </div>
+        <span className="panel-count">{requirements.length} detectados</span>
+      </div>
+      <div className="requirement-summary" aria-label="Resumen de requisitos">
+        <span className="match"><b>{matchedCount}</b> Coincidencias</span>
+        <span className="partial"><b>{partialCount}</b> Parciales</span>
+        <span className="missing"><b>{missingCount}</b> A desarrollar</span>
+      </div>
       <div className="requirement-filters" role="group" aria-label="Filtrar requisitos">
         {FILTERS.map(({ value, label }) => (
           <button key={value} type="button" aria-pressed={filter === value} className={filter === value ? 'active' : ''} onClick={() => setFilter(value)}>
