@@ -783,6 +783,23 @@ describe('api', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
+  it('ensureBackendReady keeps waiting past 120 seconds and resolves when Spring Boot health becomes UP', async () => {
+    let attempts = 0
+    const fetchMock = vi.fn().mockImplementation(() => {
+      attempts += 1
+      return Promise.resolve(jsonResponse(attempts >= 64
+        ? { status: 'UP', groups: ['liveness', 'readiness'] }
+        : { status: 'DOWN' }))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const ready = ensureBackendReady()
+    await vi.advanceTimersByTimeAsync(126000)
+
+    await expect(ready).resolves.toBeUndefined()
+    expect(fetchMock).toHaveBeenCalledTimes(64)
+  })
+
   it('ensureBackendReady rejects AbortError when the signal is already aborted', async () => {
     const controller = new AbortController()
     controller.abort()
@@ -801,7 +818,7 @@ describe('api', () => {
       status: 0,
       code: 'BACKEND_STARTUP_TIMEOUT',
     })
-    await vi.advanceTimersByTimeAsync(120000)
+    await vi.advanceTimersByTimeAsync(180000)
 
     await assertion
   })
