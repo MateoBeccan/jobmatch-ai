@@ -27,8 +27,10 @@ import com.google.genai.types.Type;
 import java.io.IOException;
 import java.io.InterruptedIOException;
 import java.net.SocketTimeoutException;
+import java.util.ArrayList;
 import java.util.Set;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -49,6 +51,14 @@ public class GeminiService {
 	private static final int MIN_PROFILE_KEYWORDS = 3;
 	private static final int MAX_PROFILE_KEYWORDS = 6;
 	private static final int MAX_PROFILE_KEYWORD_LENGTH = 50;
+	private static final int MAX_SKILLS = 50;
+	private static final int MIN_RECOMMENDATIONS = 2;
+	private static final int MAX_RECOMMENDATIONS = 10;
+	private static final int MIN_INTERVIEW_QUESTIONS = 3;
+	private static final int MAX_INTERVIEW_QUESTIONS = 10;
+	private static final int MAX_SKILL_LENGTH = 120;
+	private static final int MAX_RECOMMENDATION_LENGTH = 500;
+	private static final int MAX_INTERVIEW_QUESTION_LENGTH = 500;
 	private static final Logger LOGGER = LoggerFactory.getLogger(GeminiService.class);
 
 	private final ObjectMapper objectMapper;
@@ -728,16 +738,46 @@ public class GeminiService {
 
 	private GeminiAnalysisResult validateAndNormalizeResponse(GeminiAnalysisResult response) {
 		if (response.requirements() == null) {
-			throw new InvalidAiResponseException("No se pudo interpretar la respuesta del servicio de analisis.");
+			throw invalidResponse("requirements is null");
 		}
 
 		try {
+			List<RequirementAssessment> requirements = validateRequirements(response.requirements());
+			List<String> matchingSkills = normalizeRequiredTextList(
+					response.matchingSkills(),
+					"matchingSkills",
+					0,
+					MAX_SKILLS,
+					MAX_SKILL_LENGTH
+			);
+			List<String> missingSkills = normalizeRequiredTextList(
+					response.missingSkills(),
+					"missingSkills",
+					0,
+					MAX_SKILLS,
+					MAX_SKILL_LENGTH
+			);
+			validateNoOverlap(matchingSkills, missingSkills);
+			validateRequirementListConsistency(requirements, matchingSkills, missingSkills);
+
 			return new GeminiAnalysisResult(
-				validateRequirements(response.requirements()),
-				emptyIfNull(response.matchingSkills()),
-				emptyIfNull(response.missingSkills()),
-				emptyIfNull(response.recommendations()),
-				emptyIfNull(response.interviewQuestions()),
+				requirements,
+				matchingSkills,
+				missingSkills,
+				normalizeRequiredTextList(
+						response.recommendations(),
+						"recommendations",
+						MIN_RECOMMENDATIONS,
+						MAX_RECOMMENDATIONS,
+						MAX_RECOMMENDATION_LENGTH
+				),
+				normalizeRequiredTextList(
+						response.interviewQuestions(),
+						"interviewQuestions",
+						MIN_INTERVIEW_QUESTIONS,
+						MAX_INTERVIEW_QUESTIONS,
+						MAX_INTERVIEW_QUESTION_LENGTH
+				),
 				validateJobSearchProfile(response.jobSearchProfile())
 			);
 		}
@@ -751,22 +791,115 @@ public class GeminiService {
 
 	private List<RequirementAssessment> validateRequirements(List<RequirementAssessment> requirements) {
 		if (requirements.size() > 100) {
-			throw new InvalidAiResponseException("La respuesta del servicio de analisis contiene demasiados requisitos.");
+			throw invalidResponse("requirements exceeds max size");
 		}
 
+		List<RequirementAssessment> normalizedRequirements = new ArrayList<>();
 		Set<String> uniqueRequirements = new HashSet<>();
 		for (RequirementAssessment requirement : requirements) {
-			if (requirement.name().length() > 160
-					|| (requirement.evidence() != null && requirement.evidence().length() > 1000)) {
-				throw new InvalidAiResponseException("La respuesta del servicio de analisis contiene un requisito demasiado largo.");
+			String name = normalizeRequiredText(requirement.name(), "requirement.name", 160);
+			String evidence = normalizeRequiredText(requirement.evidence(), "requirement.evidence", 1000);
+			if (requirement.category() == null || requirement.status() == null) {
+				throw invalidResponse("requirement category or status is null");
 			}
-			String key = requirement.category().name() + ":" + requirement.name().trim().toLowerCase();
+			String key = normalizedKey(name);
 			if (!uniqueRequirements.add(key)) {
-				throw new InvalidAiResponseException("La respuesta del servicio de analisis contiene requisitos duplicados.");
+				throw invalidResponse("duplicate requirement");
 			}
+			normalizedRequirements.add(new RequirementAssessment(
+					name,
+					requirement.category(),
+					requirement.status(),
+					evidence
+			));
 		}
 
-		return List.copyOf(requirements);
+		return List.copyOf(normalizedRequirements);
+	}
+
+	private List<String> normalizeRequiredTextList(
+			List<String> values,
+			String fieldName,
+			int minItems,
+			int maxItems,
+			int maxItemLength
+	) {
+		if (values == null) {
+			throw invalidResponse(fieldName + " is null");
+		}
+		if (values.size() < minItems) {
+			throw invalidResponse(fieldName + " has too few items");
+		}
+		if (values.size() > maxItems) {
+			throw invalidResponse(fieldName + " exceeds max size");
+		}
+
+		List<String> normalized = new ArrayList<>();
+		Set<String> seen = new LinkedHashSet<>();
+		for (String value : values) {
+			String trimmed = normalizeRequiredText(value, fieldName, maxItemLength);
+			String key = normalizedKey(trimmed);
+			if (seen.add(key)) {
+				normalized.add(trimmed);
+			}
+		}
+		if (normalized.size() < minItems) {
+			throw invalidResponse(fieldName + " has too few unique items");
+		}
+		return List.copyOf(normalized);
+	}
+
+	private String normalizeRequiredText(String value, String fieldName, int maxLength) {
+		if (value == null) {
+			throw invalidResponse(fieldName + " contains null");
+		}
+		String trimmed = value.trim();
+		if (trimmed.isBlank()) {
+			throw invalidResponse(fieldName + " contains blank text");
+		}
+		if (trimmed.length() > maxLength) {
+			throw invalidResponse(fieldName + " exceeds max length");
+		}
+		return trimmed;
+	}
+
+	private void validateNoOverlap(List<String> matchingSkills, List<String> missingSkills) {
+		Set<String> missingSkillKeys = normalizedKeys(missingSkills);
+		for (String matchingSkill : matchingSkills) {
+			if (missingSkillKeys.contains(normalizedKey(matchingSkill))) {
+				throw invalidResponse("overlap between matchingSkills and missingSkills");
+			}
+		}
+	}
+
+	private void validateRequirementListConsistency(
+			List<RequirementAssessment> requirements,
+			List<String> matchingSkills,
+			List<String> missingSkills
+	) {
+		Set<String> matchingSkillKeys = normalizedKeys(matchingSkills);
+		Set<String> missingSkillKeys = normalizedKeys(missingSkills);
+		for (RequirementAssessment requirement : requirements) {
+			String requirementKey = normalizedKey(requirement.name());
+			if (requirement.status() == RequirementStatus.MATCH && missingSkillKeys.contains(requirementKey)) {
+				throw invalidResponse("requirement MATCH appears in missingSkills");
+			}
+			if (requirement.status() == RequirementStatus.MISSING && matchingSkillKeys.contains(requirementKey)) {
+				throw invalidResponse("requirement MISSING appears in matchingSkills");
+			}
+		}
+	}
+
+	private Set<String> normalizedKeys(List<String> values) {
+		Set<String> keys = new HashSet<>();
+		for (String value : values) {
+			keys.add(normalizedKey(value));
+		}
+		return keys;
+	}
+
+	private String normalizedKey(String value) {
+		return value.trim().toLowerCase(Locale.ROOT);
 	}
 
 	private GeminiJobSearchProfile validateJobSearchProfile(GeminiJobSearchProfile profile) {
@@ -791,7 +924,7 @@ public class GeminiService {
 	}
 
 	private List<String> normalizeProfileKeywords(List<String> keywords) {
-		List<String> normalized = new java.util.ArrayList<>();
+		List<String> normalized = new ArrayList<>();
 		Set<String> seen = new HashSet<>();
 		for (String keyword : keywords) {
 			if (keyword == null) {
@@ -815,12 +948,9 @@ public class GeminiService {
 		return List.copyOf(normalized);
 	}
 
-	private List<String> emptyIfNull(List<String> values) {
-		if (values == null) {
-			return List.of();
-		}
-
-		return List.copyOf(values);
+	private InvalidAiResponseException invalidResponse(String reason) {
+		LOGGER.warn("Invalid Gemini response: {}", reason);
+		return new InvalidAiResponseException("No se pudo interpretar la respuesta del servicio de analisis.");
 	}
 
 	@FunctionalInterface

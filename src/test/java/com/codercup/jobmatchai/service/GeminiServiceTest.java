@@ -219,23 +219,23 @@ class GeminiServiceTest {
 	}
 
 	@Test
-	void parseResponseAcceptsValidRequirementsAndNormalizesNullableLists() throws Exception {
+	void parseResponseAcceptsValidRequirementsAndNormalizesTextLists() throws Exception {
 		GeminiService geminiService = new GeminiService("test-key", "test-model", 30000, 2, 500);
 
 		GeminiAnalysisResult result = parseResponse(geminiService, """
 				{
 				  "requirements": [
 				    {
-				      "name": "Java",
+				      "name": " Java ",
 				      "category": "MANDATORY_TECHNICAL",
 				      "status": "MATCH",
-				      "evidence": "Java aparece en skills y proyectos."
+				      "evidence": " Java aparece en skills y proyectos. "
 				    }
 				  ],
-				  "matchingSkills": ["Java"],
-				  "missingSkills": null,
-				  "recommendations": null,
-				  "interviewQuestions": null,
+				  "matchingSkills": [" Java ", "java", "JAVA"],
+				  "missingSkills": [" Docker ", "docker"],
+				  "recommendations": [" Destacar Java ", "destacar java", "Practicar Docker"],
+				  "interviewQuestions": [" Pregunta 1 ", "Pregunta 1", "Pregunta 2", "Pregunta 3"],
 				  "jobSearchProfile": {
 				    "role": " Java Backend Developer ",
 				    "seniority": "JUNIOR",
@@ -246,15 +246,45 @@ class GeminiServiceTest {
 
 		assertThat(result.requirements()).hasSize(1);
 		assertThat(result.requirements().get(0).name()).isEqualTo("Java");
+		assertThat(result.requirements().get(0).evidence()).isEqualTo("Java aparece en skills y proyectos.");
 		assertThat(result.requirements().get(0).category()).isEqualTo(RequirementCategory.MANDATORY_TECHNICAL);
 		assertThat(result.requirements().get(0).status()).isEqualTo(RequirementStatus.MATCH);
 		assertThat(result.matchingSkills()).containsExactly("Java");
-		assertThat(result.missingSkills()).isEmpty();
-		assertThat(result.recommendations()).isEmpty();
-		assertThat(result.interviewQuestions()).isEmpty();
+		assertThat(result.missingSkills()).containsExactly("Docker");
+		assertThat(result.recommendations()).containsExactly("Destacar Java", "Practicar Docker");
+		assertThat(result.interviewQuestions()).containsExactly("Pregunta 1", "Pregunta 2", "Pregunta 3");
 		assertThat(result.jobSearchProfile().role()).isEqualTo("Java Backend Developer");
 		assertThat(result.jobSearchProfile().seniority()).isEqualTo(JobSeniority.JUNIOR);
 		assertThat(result.jobSearchProfile().keywords()).containsExactly("Java", "Spring Boot", "SQL", "REST API");
+	}
+
+	@Test
+	void parseResponseRejectsNullRequiredTextLists() {
+		GeminiService geminiService = new GeminiService("test-key", "test-model", 30000, 2, 500);
+
+		assertThatThrownBy(() -> parseResponse(geminiService, """
+				{
+				  "requirements": [
+				    {
+				      "name": "Java",
+				      "category": "MANDATORY_TECHNICAL",
+				      "status": "MATCH",
+				      "evidence": "Java aparece en el CV."
+				    }
+				  ],
+				  "matchingSkills": ["Java"],
+				  "missingSkills": null,
+				  "recommendations": ["Destacar Java", "Practicar entrevistas"],
+				  "interviewQuestions": ["Pregunta 1", "Pregunta 2", "Pregunta 3"],
+				  "jobSearchProfile": {
+				    "role": "Java Backend Developer",
+				    "seniority": "JUNIOR",
+				    "keywords": ["Java", "Spring Boot", "SQL"]
+				  }
+				}
+				"""))
+				.isInstanceOf(InvalidAiResponseException.class)
+				.hasMessage("No se pudo interpretar la respuesta del servicio de analisis.");
 	}
 
 	@Test
@@ -509,18 +539,166 @@ class GeminiServiceTest {
 	}
 
 	@Test
-	void parseResponseAllowsBlankEvidence() throws Exception {
+	void parseResponseRejectsBlankEvidenceForMatch() {
 		GeminiService geminiService = new GeminiService("test-key", "test-model", 30000, 2, 500);
 
-		GeminiAnalysisResult result = parseResponse(geminiService, responseWithRequirement(
+		assertThatThrownBy(() -> parseResponse(geminiService, responseWithRequirement(
 				"Java",
 				"MANDATORY_TECHNICAL",
 				"MATCH",
 				""
-		));
+		)))
+				.isInstanceOf(InvalidAiResponseException.class)
+				.hasMessage("No se pudo interpretar la respuesta del servicio de analisis.");
+	}
 
-		assertThat(result.requirements()).hasSize(1);
-		assertThat(result.requirements().get(0).evidence()).isEmpty();
+	@Test
+	void parseResponseRejectsBlankEvidenceForPartial() {
+		GeminiService geminiService = new GeminiService("test-key", "test-model", 30000, 2, 500);
+
+		assertThatThrownBy(() -> parseResponse(geminiService, responseWithRequirement(
+				"Java",
+				"MANDATORY_TECHNICAL",
+				"PARTIAL",
+				" "
+		)))
+				.isInstanceOf(InvalidAiResponseException.class)
+				.hasMessage("No se pudo interpretar la respuesta del servicio de analisis.");
+	}
+
+	@Test
+	void parseResponseRejectsBlankRequirementName() {
+		GeminiService geminiService = new GeminiService("test-key", "test-model", 30000, 2, 500);
+
+		assertThatThrownBy(() -> parseResponse(geminiService, responseWithRequirement(
+				" ",
+				"MANDATORY_TECHNICAL",
+				"MATCH",
+				"Java aparece en el CV."
+		)))
+				.isInstanceOf(InvalidAiResponseException.class)
+				.hasMessage("No se pudo interpretar la respuesta del servicio de analisis.");
+	}
+
+	@Test
+	void parseResponseRejectsDuplicateRequirementsCaseInsensitive() {
+		GeminiService geminiService = new GeminiService("test-key", "test-model", 30000, 2, 500);
+
+		assertThatThrownBy(() -> parseResponse(geminiService, """
+				{
+				  "requirements": [
+				    {
+				      "name": "Spring Boot",
+				      "category": "MANDATORY_TECHNICAL",
+				      "status": "MATCH",
+				      "evidence": "Spring Boot aparece en el CV."
+				    },
+				    {
+				      "name": " spring boot ",
+				      "category": "MANDATORY_TECHNICAL",
+				      "status": "PARTIAL",
+				      "evidence": "Spring Boot aparece en proyectos."
+				    }
+				  ],
+				  "matchingSkills": ["Spring Boot"],
+				  "missingSkills": [],
+				  "recommendations": ["Destacar Spring Boot", "Preparar arquitectura backend"],
+				  "interviewQuestions": ["Pregunta 1", "Pregunta 2", "Pregunta 3"],
+				  "jobSearchProfile": {
+				    "role": "Java Backend Developer",
+				    "seniority": "JUNIOR",
+				    "keywords": ["Java", "Spring Boot", "SQL"]
+				  }
+				}
+				"""))
+				.isInstanceOf(InvalidAiResponseException.class)
+				.hasMessage("No se pudo interpretar la respuesta del servicio de analisis.");
+	}
+
+	@Test
+	void parseResponseRejectsOverlapBetweenMatchingAndMissingSkills() {
+		GeminiService geminiService = new GeminiService("test-key", "test-model", 30000, 2, 500);
+
+		assertThatThrownBy(() -> parseResponse(geminiService, validResponseJson(
+				"[\"Java\"]",
+				"[\" java \"]",
+				"[\"Destacar Java\", \"Practicar entrevistas\"]",
+				"[\"Pregunta 1\", \"Pregunta 2\", \"Pregunta 3\"]"
+		)))
+				.isInstanceOf(InvalidAiResponseException.class)
+				.hasMessage("No se pudo interpretar la respuesta del servicio de analisis.");
+	}
+
+	@Test
+	void parseResponseRejectsBlankMatchingSkill() {
+		GeminiService geminiService = new GeminiService("test-key", "test-model", 30000, 2, 500);
+
+		assertThatThrownBy(() -> parseResponse(geminiService, validResponseJson(
+				"[\"\"]",
+				"[]",
+				"[\"Destacar Java\", \"Practicar entrevistas\"]",
+				"[\"Pregunta 1\", \"Pregunta 2\", \"Pregunta 3\"]"
+		)))
+				.isInstanceOf(InvalidAiResponseException.class)
+				.hasMessage("No se pudo interpretar la respuesta del servicio de analisis.");
+	}
+
+	@Test
+	void parseResponseRejectsBlankRecommendation() {
+		GeminiService geminiService = new GeminiService("test-key", "test-model", 30000, 2, 500);
+
+		assertThatThrownBy(() -> parseResponse(geminiService, validResponseJson(
+				"[\"Java\"]",
+				"[]",
+				"[\" \", \"Practicar entrevistas\"]",
+				"[\"Pregunta 1\", \"Pregunta 2\", \"Pregunta 3\"]"
+		)))
+				.isInstanceOf(InvalidAiResponseException.class)
+				.hasMessage("No se pudo interpretar la respuesta del servicio de analisis.");
+	}
+
+	@Test
+	void parseResponseRejectsBlankInterviewQuestion() {
+		GeminiService geminiService = new GeminiService("test-key", "test-model", 30000, 2, 500);
+
+		assertThatThrownBy(() -> parseResponse(geminiService, validResponseJson(
+				"[\"Java\"]",
+				"[]",
+				"[\"Destacar Java\", \"Practicar entrevistas\"]",
+				"[\"Pregunta 1\", \" \", \"Pregunta 3\"]"
+		)))
+				.isInstanceOf(InvalidAiResponseException.class)
+				.hasMessage("No se pudo interpretar la respuesta del servicio de analisis.");
+	}
+
+	@Test
+	void parseResponseRejectsMatchRequirementInMissingSkills() {
+		GeminiService geminiService = new GeminiService("test-key", "test-model", 30000, 2, 500);
+
+		assertThatThrownBy(() -> parseResponse(geminiService, validResponseJson(
+				"[]",
+				"[\" java \"]",
+				"[\"Destacar Java\", \"Practicar entrevistas\"]",
+				"[\"Pregunta 1\", \"Pregunta 2\", \"Pregunta 3\"]"
+		)))
+				.isInstanceOf(InvalidAiResponseException.class)
+				.hasMessage("No se pudo interpretar la respuesta del servicio de analisis.");
+	}
+
+	@Test
+	void parseResponseRejectsMissingRequirementInMatchingSkills() {
+		GeminiService geminiService = new GeminiService("test-key", "test-model", 30000, 2, 500);
+
+		assertThatThrownBy(() -> parseResponse(geminiService, responseWithRequirementAndLists(
+				"Docker",
+				"MANDATORY_TECHNICAL",
+				"MISSING",
+				"El CV no demuestra Docker.",
+				"[\" docker \"]",
+				"[]"
+		)))
+				.isInstanceOf(InvalidAiResponseException.class)
+				.hasMessage("No se pudo interpretar la respuesta del servicio de analisis.");
 	}
 
 	@Test
@@ -859,30 +1037,73 @@ class GeminiServiceTest {
 	}
 
 	private String validResponseJson() {
-		return """
-				{
-				  "requirements": [
-				    {
-				      "name": "Java",
-				      "category": "MANDATORY_TECHNICAL",
-				      "status": "MATCH",
-				      "evidence": "Java aparece en el CV."
-				    }
-				  ],
-				  "matchingSkills": ["Java"],
-				  "missingSkills": ["Docker"],
-				  "recommendations": ["Practicar Docker", "Destacar experiencia con Java"],
-				  "interviewQuestions": ["Pregunta 1", "Pregunta 2", "Pregunta 3"],
-				  "jobSearchProfile": {
-				    "role": "Java Backend Developer",
-				    "seniority": "JUNIOR",
-				    "keywords": ["Java", "Spring Boot", "SQL", "REST API"]
-				  }
-				}
-				""";
+		return validResponseJson(
+				"[\"Java\"]",
+				"[\"Docker\"]",
+				"[\"Practicar Docker\", \"Destacar experiencia con Java\"]",
+				"[\"Pregunta 1\", \"Pregunta 2\", \"Pregunta 3\"]"
+		);
+	}
+
+	private String validResponseJson(
+			String matchingSkillsJson,
+			String missingSkillsJson,
+			String recommendationsJson,
+			String interviewQuestionsJson
+	) {
+		return responseWithRequirementAndLists(
+				"Java",
+				"MANDATORY_TECHNICAL",
+				"MATCH",
+				"Java aparece en el CV.",
+				matchingSkillsJson,
+				missingSkillsJson,
+				recommendationsJson,
+				interviewQuestionsJson
+		);
 	}
 
 	private String responseWithRequirement(String name, String category, String status, String evidence) {
+		return responseWithRequirementAndLists(
+				name,
+				category,
+				status,
+				evidence,
+				"[]",
+				"[]"
+		);
+	}
+
+	private String responseWithRequirementAndLists(
+			String name,
+			String category,
+			String status,
+			String evidence,
+			String matchingSkillsJson,
+			String missingSkillsJson
+	) {
+		return responseWithRequirementAndLists(
+				name,
+				category,
+				status,
+				evidence,
+				matchingSkillsJson,
+				missingSkillsJson,
+				"[\"Destacar Java\", \"Practicar entrevistas\"]",
+				"[\"Pregunta 1\", \"Pregunta 2\", \"Pregunta 3\"]"
+		);
+	}
+
+	private String responseWithRequirementAndLists(
+			String name,
+			String category,
+			String status,
+			String evidence,
+			String matchingSkillsJson,
+			String missingSkillsJson,
+			String recommendationsJson,
+			String interviewQuestionsJson
+	) {
 		return """
 				{
 				  "requirements": [
@@ -893,17 +1114,26 @@ class GeminiServiceTest {
 				      "evidence": "%s"
 				    }
 				  ],
-				  "matchingSkills": [],
-				  "missingSkills": [],
-				  "recommendations": [],
-				  "interviewQuestions": [],
+				  "matchingSkills": %s,
+				  "missingSkills": %s,
+				  "recommendations": %s,
+				  "interviewQuestions": %s,
 				  "jobSearchProfile": {
 				    "role": "Java Backend Developer",
 				    "seniority": "JUNIOR",
 				    "keywords": ["Java", "Spring Boot", "SQL"]
 				  }
 				}
-				""".formatted(name, category, status, evidence);
+				""".formatted(
+						name,
+						category,
+						status,
+						evidence,
+						matchingSkillsJson,
+						missingSkillsJson,
+						recommendationsJson,
+						interviewQuestionsJson
+				);
 	}
 
 	private String responseWithProfile(String profileJson) {
