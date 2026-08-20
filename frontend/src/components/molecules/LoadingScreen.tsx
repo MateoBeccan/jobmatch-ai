@@ -35,25 +35,10 @@ export function LoadingScreen({ phase }: LoadingScreenProps) {
       <main className="loading-shell">
         <header className="loading-header">JobMatch <b>AI</b></header>
         <section className="loading-card" aria-live="polite">
-          <div className="loading-visual" aria-hidden="true">
-            <div className="loading-orbit loading-orbit-one" />
-            <div className="loading-orbit loading-orbit-two" />
-            <div className="document-preview">
-              <span className="document-fold" />
-              <span className="document-line document-line-long" />
-              <span className="document-line" />
-              <span className="document-line document-line-short" />
-              <span className="document-line" />
-              <span className="document-line document-line-medium" />
-              <span className="scan-beam" />
-            </div>
-            <span className="loading-pulse pulse-one" />
-            <span className="loading-pulse pulse-two" />
-            <span className="loading-pulse pulse-three" />
-          </div>
+          <LoadingVisual />
           <AnalysisStepper steps={ANALYSIS_STEPS} current="analysis" />
           <p className="loading-kicker">PREPARANDO SERVICIO</p>
-          <h1>Preparando el servidor...</h1>
+          <h1 className="loading-current-message">Preparando el servidor...</h1>
           <p className="loading-copy">El servicio puede tardar unos segundos en iniciar después de un período de inactividad.</p>
         </section>
       </main>
@@ -63,26 +48,11 @@ export function LoadingScreen({ phase }: LoadingScreenProps) {
   return (
     <main className="loading-shell">
       <header className="loading-header">JobMatch <b>AI</b></header>
-      <section className="loading-card" aria-live="polite">
-        <div className="loading-visual" aria-hidden="true">
-          <div className="loading-orbit loading-orbit-one" />
-          <div className="loading-orbit loading-orbit-two" />
-          <div className="document-preview">
-            <span className="document-fold" />
-            <span className="document-line document-line-long" />
-            <span className="document-line" />
-            <span className="document-line document-line-short" />
-            <span className="document-line" />
-            <span className="document-line document-line-medium" />
-            <span className="scan-beam" />
-          </div>
-          <span className="loading-pulse pulse-one" />
-          <span className="loading-pulse pulse-two" />
-          <span className="loading-pulse pulse-three" />
-        </div>
+      <section className="loading-card">
+        <LoadingVisual />
         <AnalysisStepper steps={ANALYSIS_STEPS} current="analysis" />
         <p className="loading-kicker">ANÁLISIS EN CURSO</p>
-        <h1>{LOADING_MESSAGES[activeStep]}</h1>
+        <h1 className="loading-current-message" aria-live="polite">{LOADING_MESSAGES[activeStep]}</h1>
         <p className="loading-copy">Nuestra IA está comparando tus habilidades con los requisitos de la oferta.</p>
         <div className="loading-progress" aria-label={`${progress}% completado`} role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress}>
           <span style={{ width: `${progress}%` }} />
@@ -97,5 +67,26 @@ export function LoadingScreen({ phase }: LoadingScreenProps) {
         </div>
       </section>
     </main>
+  )
+}
+
+function LoadingVisual() {
+  return (
+    <div className="loading-visual" aria-hidden="true">
+      <div className="loading-orbit loading-orbit-one" />
+      <div className="loading-orbit loading-orbit-two" />
+      <div className="document-preview">
+        <span className="document-fold" />
+        <span className="document-line document-line-long" />
+        <span className="document-line" />
+        <span className="document-line document-line-short" />
+        <span className="document-line" />
+        <span className="document-line document-line-medium" />
+        <span className="scan-beam" />
+      </div>
+      <span className="loading-pulse pulse-one" />
+      <span className="loading-pulse pulse-two" />
+      <span className="loading-pulse pulse-three" />
+    </div>
   )
 }

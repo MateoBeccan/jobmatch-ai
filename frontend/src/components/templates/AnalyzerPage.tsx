@@ -7,7 +7,7 @@ import type { AnalysisMode, AnalysisResponse, Theme } from '../../lib/types/type
 import { BottomNav } from '../atoms/BottomNav'
 import { AppHeader } from '../molecules/AppHeader'
 import { LoadingScreen } from '../molecules/LoadingScreen'
-import { AnalysisStepper, ANALYSIS_STEPS } from '../molecules/AnalysisStepper'
+import { AnalysisStepper } from '../molecules/AnalysisStepper'
 import { FileUploadCard } from '../molecules/FileUploadCard'
 import { InlineFilePreview } from '../molecules/InlineFilePreview'
 import { AnalysisErrorAlert } from '../molecules/AnalysisErrorAlert'
@@ -31,6 +31,13 @@ type AnalyzerPageProps = {
 
 type LoadingPhase = 'idle' | 'preparing' | 'analyzing'
 
+const ANALYZER_STEPS = [
+  { key: 'cv', label: 'CV' },
+  { key: 'offer', label: 'Oferta' },
+  { key: 'analysis', label: 'Análisis' },
+  { key: 'result', label: 'Resultado' },
+]
+
 export function AnalyzerPage({ theme, onToggleTheme, onNavigate, initialOffer = null, onInitialOfferConsumed }: AnalyzerPageProps) {
   const [cvFile, setCvFile] = useState<File | null>(null)
   const [jobImage, setJobImage] = useState<File | null>(null)
@@ -50,6 +57,7 @@ export function AnalyzerPage({ theme, onToggleTheme, onNavigate, initialOffer = 
   const hasOffer = mode === 'text' ? jobDescription.trim().length > 0 : jobImage !== null
   const currentStep = !cvFile ? 'cv' : !hasOffer ? 'offer' : 'analysis'
   const isLoading = loadingPhase !== 'idle'
+  const cvUploadError = errorKind === 'validation' && !cvFile && error?.message.startsWith('El CV') ? error.message : null
 
   useEffect(() => {
     if (initialOffer) onInitialOfferConsumed?.()
@@ -204,17 +212,26 @@ export function AnalyzerPage({ theme, onToggleTheme, onNavigate, initialOffer = 
         <section className="evaluation-intro" id="analizar">
           <span className="intro-kicker">JobMatch AI</span>
           <h1>Nueva Evaluación</h1>
-          <p>Subí el currículum del candidato y describí el perfil buscado para obtener un análisis detallado de compatibilidad impulsado por IA.</p>
-          <AnalysisStepper steps={ANALYSIS_STEPS} current={currentStep} />
+          <p>Prepará tu CV y la oferta que querés analizar.</p>
+          <div className="analyzer-stepper-panel">
+            <AnalysisStepper steps={ANALYZER_STEPS} current={currentStep} />
+          </div>
         </section>
       )}
 
       <form className="workspace" aria-busy={isLoading} aria-describedby={error ? 'form-error' : undefined} onSubmit={(event) => void handleSubmit(event)}>
         <section className="form-card candidate-card">
-          <div className="section-label-row"><span className="step-number">01</span><h2>Documento del candidato</h2></div>
+          <div className="section-label-row analysis-card-heading">
+            <span className="step-number">01</span>
+            <span className="analysis-card-title-copy">
+              <h2>Tu currículum</h2>
+              <small>Cargá el CV que querés evaluar</small>
+            </span>
+          </div>
           <FileUploadCard
             file={cvFile ? { name: cvFile.name, size: cvFile.size } : null}
             isDragging={isDragging}
+            errorMessage={cvUploadError}
             onChange={() => cvInputRef.current?.click()}
             onRemove={handleCvRemove}
             onDrop={handleCvDrop}
@@ -226,7 +243,14 @@ export function AnalyzerPage({ theme, onToggleTheme, onNavigate, initialOffer = 
         </section>
 
         <section className="form-card offer-card">
-          <div className="section-label-row"><span className="step-number">02</span><h2>Descripción de la oferta</h2><span className="character-count" id="description-count">{mode === 'text' ? `${jobDescription.length} / ${MAX_JOB_DESCRIPTION_LENGTH}` : 'Imagen'}</span></div>
+          <div className="section-label-row analysis-card-heading">
+            <span className="step-number">02</span>
+            <span className="analysis-card-title-copy">
+              <h2>Oferta laboral</h2>
+              <small>Agregá los requisitos del puesto</small>
+            </span>
+            <span className="character-count" id="description-count">{mode === 'text' ? `${jobDescription.length} / ${MAX_JOB_DESCRIPTION_LENGTH}` : 'Imagen'}</span>
+          </div>
           <div className="mode-switch" role="group" aria-label="Formato de la oferta">
             <button type="button" aria-pressed={mode === 'text'} className={mode === 'text' ? 'active' : ''} onClick={() => changeMode('text')}>Pegar texto</button>
             <button type="button" aria-pressed={mode === 'image'} className={mode === 'image' ? 'active' : ''} onClick={() => changeMode('image')}>Subir imagen</button>
