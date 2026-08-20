@@ -2399,6 +2399,9 @@
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
   overflow: hidden;
 }
+.benefit-scenario-content {
+  animation: benefitScenarioFade 220ms ease both;
+}
 .benefit-visual-compatibility {
   grid-template-columns: auto 1fr;
   align-items: center;
@@ -2534,6 +2537,15 @@
   background: linear-gradient(180deg, rgba(31, 229, 255, 0.26), rgba(37, 117, 252, 0.22));
   font-weight: 900;
   transform: translateY(-50%);
+}
+@keyframes benefitScenarioFade {
+  from {
+    opacity: 0.72;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 :root[data-theme='light'] .home-benefit-card {
   border-color: rgba(119, 157, 205, 0.24);
@@ -4196,6 +4208,10 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .benefit-scenario-content {
+    animation: none;
+  }
+
   .hero-analysis-panel,
   .hero-analysis-panel::after,
   .hero-requirement-row,
