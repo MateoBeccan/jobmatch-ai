@@ -36,12 +36,131 @@ const BENEFITS = [
 
 const HOW_STEP_COUNT = 3
 const MATCH_TARGET = 87
+export const DEMO_SCENARIO_DURATION_MS = 5800
+export const HOME_STEP_ENTER_THRESHOLD = 0.32
+export const HOME_STEP_EXIT_THRESHOLD = 0.12
+
+type DemoScenario = {
+  role: string
+  matchingSkills: [string, string, string]
+  missingSkill: string
+  strength: string
+  recommendation: string
+  recommendationImpact: string
+  interviewQuestion: string
+  interviewTag: string
+}
+
+export const DEMO_SCENARIOS: DemoScenario[] = [
+  {
+    role: 'Backend Developer',
+    matchingSkills: ['Java', 'Spring Boot', 'SQL'],
+    missingSkill: 'Docker',
+    strength: 'Backend',
+    recommendation: 'Sumá Docker a tus proyectos',
+    recommendationImpact: 'Impacto alto',
+    interviewQuestion: '¿Cómo diseñarías una API REST?',
+    interviewTag: 'Backend',
+  },
+  {
+    role: 'Frontend Developer',
+    matchingSkills: ['React', 'JavaScript', 'HTML/CSS'],
+    missingSkill: 'TypeScript',
+    strength: 'Frontend',
+    recommendation: 'Incorporá TypeScript en un proyecto',
+    recommendationImpact: 'Impacto alto',
+    interviewQuestion: '¿Cómo optimizarías una aplicación React?',
+    interviewTag: 'Frontend',
+  },
+  {
+    role: 'Data Analyst',
+    matchingSkills: ['SQL', 'Excel', 'Python'],
+    missingSkill: 'Power BI',
+    strength: 'Análisis de datos',
+    recommendation: 'Sumá un dashboard a tu portfolio',
+    recommendationImpact: 'Impacto medio',
+    interviewQuestion: '¿Cómo analizarías datos faltantes?',
+    interviewTag: 'Data',
+  },
+  {
+    role: 'QA Automation',
+    matchingSkills: ['Java', 'APIs', 'Git'],
+    missingSkill: 'Selenium',
+    strength: 'Testing',
+    recommendation: 'Practicá automatización con Selenium',
+    recommendationImpact: 'Impacto alto',
+    interviewQuestion: '¿Qué casos automatizarías primero?',
+    interviewTag: 'QA',
+  },
+  {
+    role: 'Full Stack Junior',
+    matchingSkills: ['Java', 'React', 'SQL'],
+    missingSkill: 'Testing',
+    strength: 'Full Stack',
+    recommendation: 'Agregá tests a tus proyectos',
+    recommendationImpact: 'Impacto medio',
+    interviewQuestion: '¿Cómo conectarías React con una API REST?',
+    interviewTag: 'Full Stack',
+  },
+]
+
+export function resolveHomeStepVisibility(isCurrentlyVisible: boolean, intersectionRatio: number) {
+  return isCurrentlyVisible
+    ? intersectionRatio > HOME_STEP_EXIT_THRESHOLD
+    : intersectionRatio >= HOME_STEP_ENTER_THRESHOLD
+}
+
+export function getNextDemoScenarioIndex(currentIndex: number, scenarioCount = DEMO_SCENARIOS.length) {
+  return (currentIndex + 1) % scenarioCount
+}
+
+export function shouldRotateDemoScenarios(reducedMotion: boolean) {
+  return !reducedMotion
+}
+
+export function scheduleDemoScenarioRotation(
+  advance: () => void,
+  options: { duration?: number; documentRef?: Pick<Document, 'addEventListener' | 'removeEventListener' | 'visibilityState'> } = {},
+) {
+  const duration = options.duration ?? DEMO_SCENARIO_DURATION_MS
+  const documentRef = options.documentRef
+  let timer: ReturnType<typeof window.setInterval> | null = null
+
+  const stop = () => {
+    if (timer !== null) {
+      window.clearInterval(timer)
+      timer = null
+    }
+  }
+
+  const start = () => {
+    if (timer === null && documentRef?.visibilityState !== 'hidden') {
+      timer = window.setInterval(advance, duration)
+    }
+  }
+
+  const handleVisibilityChange = () => {
+    if (documentRef?.visibilityState === 'hidden') {
+      stop()
+      return
+    }
+    start()
+  }
+
+  start()
+  documentRef?.addEventListener('visibilitychange', handleVisibilityChange)
+
+  return () => {
+    stop()
+    documentRef?.removeEventListener('visibilitychange', handleVisibilityChange)
+  }
+}
 
 function shouldReduceMotion() {
   return typeof window !== 'undefined' && 'matchMedia' in window && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 }
 
-function BenefitVisual({ kind }: { kind: (typeof BENEFITS)[number]['kind'] }) {
+function BenefitVisual({ kind, scenario }: { kind: (typeof BENEFITS)[number]['kind']; scenario: DemoScenario }) {
   if (kind === 'compatibility') {
     return (
       <div className="benefit-visual benefit-visual-compatibility">
@@ -58,11 +177,11 @@ function BenefitVisual({ kind }: { kind: (typeof BENEFITS)[number]['kind'] }) {
       <div className="benefit-visual benefit-visual-skills">
         <span>
           <small>Fortaleza principal</small>
-          <strong>Backend</strong>
+          <strong>{scenario.strength}</strong>
         </span>
         <span>
           <small>A reforzar</small>
-          <strong>Docker</strong>
+          <strong>{scenario.missingSkill}</strong>
         </span>
       </div>
     )
@@ -73,8 +192,8 @@ function BenefitVisual({ kind }: { kind: (typeof BENEFITS)[number]['kind'] }) {
       <div className="benefit-visual benefit-visual-recommendations">
         <span className="benefit-spark" aria-hidden="true">*</span>
         <small>Sugerencia</small>
-        <strong>Sumá Docker a tus proyectos</strong>
-        <span className="benefit-impact">Impacto alto</span>
+        <strong>{scenario.recommendation}</strong>
+        <span className="benefit-impact">{scenario.recommendationImpact}</span>
         <span className="benefit-arrow">↗</span>
       </div>
     )
@@ -84,8 +203,8 @@ function BenefitVisual({ kind }: { kind: (typeof BENEFITS)[number]['kind'] }) {
     <div className="benefit-visual benefit-visual-interview">
       <span className="benefit-chat-bubble" aria-hidden="true">?</span>
       <small>Pregunta sugerida</small>
-      <strong>¿Cómo diseñarías una API REST?</strong>
-      <span className="benefit-impact">Backend</span>
+      <strong>{scenario.interviewQuestion}</strong>
+      <span className="benefit-impact">{scenario.interviewTag}</span>
     </div>
   )
 }
@@ -93,14 +212,27 @@ function BenefitVisual({ kind }: { kind: (typeof BENEFITS)[number]['kind'] }) {
 export function HomePage({ theme, onToggleTheme, onNavigate }: HomePageProps) {
   const stepRefs = useRef<Array<HTMLElement | null>>([])
   const scoreAnimationRef = useRef<number | null>(null)
+  const [demoScenarioIndex, setDemoScenarioIndex] = useState(0)
   const [visibleSteps, setVisibleSteps] = useState<boolean[]>(() =>
     Array(HOW_STEP_COUNT).fill(typeof window === 'undefined' || shouldReduceMotion()),
   )
   const [matchScore, setMatchScore] = useState(() => (typeof window === 'undefined' || shouldReduceMotion() ? MATCH_TARGET : 0))
+  const activeScenario = DEMO_SCENARIOS[demoScenarioIndex]
 
   const scrollToHowItWorks = () => {
     document.getElementById('como-funciona')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !shouldRotateDemoScenarios(shouldReduceMotion())) {
+      return
+    }
+
+    return scheduleDemoScenarioRotation(
+      () => setDemoScenarioIndex((current) => getNextDemoScenarioIndex(current)),
+      { documentRef: typeof document === 'undefined' ? undefined : document },
+    )
+  }, [])
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -121,22 +253,30 @@ export function HomePage({ theme, onToggleTheme, onNavigate }: HomePageProps) {
 
     const observer = new IntersectionObserver(
       (entries) => {
-        entries.forEach((entry) => {
-          const index = Number((entry.target as HTMLElement).dataset.stepIndex)
-          const isStepVisible = entry.isIntersecting && entry.intersectionRatio >= 0.32
+        setVisibleSteps((current) => {
+          let next = current
 
-          setVisibleSteps((current) => {
-            if (current[index] === isStepVisible) {
-              return current
+          entries.forEach((entry) => {
+            const index = Number((entry.target as HTMLElement).dataset.stepIndex)
+            if (!Number.isInteger(index) || index < 0 || index >= current.length) {
+              return
             }
 
-            const next = [...current]
+            const isStepVisible = resolveHomeStepVisibility(current[index], entry.intersectionRatio)
+            if (current[index] === isStepVisible) {
+              return
+            }
+
+            if (next === current) {
+              next = [...current]
+            }
             next[index] = isStepVisible
-            return next
           })
+
+          return next
         })
       },
-      { threshold: [0, 0.25, 0.32, 0.4], rootMargin: '0px 0px -10% 0px' },
+      { threshold: [0, HOME_STEP_EXIT_THRESHOLD, HOME_STEP_ENTER_THRESHOLD, 0.5], rootMargin: '0px 0px -10% 0px' },
     )
 
     stepRefs.current.forEach((step) => {
@@ -162,6 +302,10 @@ export function HomePage({ theme, onToggleTheme, onNavigate }: HomePageProps) {
 
   useEffect(() => {
     if (!visibleSteps[2] || typeof window === 'undefined') {
+      if (typeof window !== 'undefined' && scoreAnimationRef.current) {
+        window.cancelAnimationFrame(scoreAnimationRef.current)
+        scoreAnimationRef.current = null
+      }
       if (!shouldReduceMotion()) {
         setMatchScore(0)
       }
@@ -244,23 +388,23 @@ export function HomePage({ theme, onToggleTheme, onNavigate }: HomePageProps) {
             </div>
             <div className="hero-job-preview">
               <span className="hero-job-kicker">Oferta</span>
-              <strong>Backend Developer</strong>
+              <strong>{activeScenario.role}</strong>
             </div>
             <div className="hero-requirement-list">
               <div className="hero-requirement-row hero-row-java">
-                <span>Java</span>
+                <span>{activeScenario.matchingSkills[0]}</span>
                 <strong>✓ Coincide</strong>
               </div>
               <div className="hero-requirement-row hero-row-spring">
-                <span>Spring Boot</span>
+                <span>{activeScenario.matchingSkills[1]}</span>
                 <strong>✓ Coincide</strong>
               </div>
               <div className="hero-requirement-row hero-row-sql">
-                <span>SQL</span>
+                <span>{activeScenario.matchingSkills[2]}</span>
                 <strong>✓ Coincide</strong>
               </div>
               <div className="hero-requirement-row hero-row-docker">
-                <span>Docker</span>
+                <span>{activeScenario.missingSkill}</span>
                 <strong>! Falta</strong>
               </div>
             </div>
@@ -278,7 +422,9 @@ export function HomePage({ theme, onToggleTheme, onNavigate }: HomePageProps) {
       <section className="home-benefits" aria-label="Beneficios principales">
         {BENEFITS.map((benefit) => (
           <article className="home-benefit-card" key={benefit.title}>
-            <BenefitVisual kind={benefit.kind} />
+            <div className="benefit-scenario-content" key={`${demoScenarioIndex}-${benefit.kind}`}>
+              <BenefitVisual kind={benefit.kind} scenario={activeScenario} />
+            </div>
             <h2>{benefit.title}</h2>
             <p>{benefit.text}</p>
           </article>
