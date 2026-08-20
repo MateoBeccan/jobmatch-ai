@@ -8,6 +8,15 @@ import org.springframework.stereotype.Component;
 @Component
 public class MatchScoreCalculator {
 
+	private static final int CRITICAL_PARTIAL_SCORE_CAP = 85;
+	private static final int SINGLE_CRITICAL_MISSING_SCORE_CAP = 69;
+	private static final int MULTIPLE_CRITICAL_MISSING_SCORE_CAP = 54;
+
+	/**
+	 * Calculates the category-weighted base score, then caps the final score when
+	 * critical requirements from the job offer are not fully met. The breakdown
+	 * continues to describe the uncapped category scores.
+	 */
 	public MatchScoreResult calculate(List<RequirementAssessment> requirements) {
 		if (requirements == null || requirements.isEmpty()) {
 			return new MatchScoreResult(0, emptyBreakdown());
@@ -32,7 +41,34 @@ public class MatchScoreCalculator {
 				? 0
 				: (int) Math.round((weightedPoints / totalPresentWeight) * 100);
 
-		return new MatchScoreResult(matchPercentage, buildBreakdown(accumulators));
+		return new MatchScoreResult(applyCriticalRequirementPolicy(matchPercentage, requirements), buildBreakdown(accumulators));
+	}
+
+	private int applyCriticalRequirementPolicy(int baseScore, List<RequirementAssessment> requirements) {
+		int criticalMissing = 0;
+		boolean hasCriticalPartial = false;
+		for (RequirementAssessment requirement : requirements) {
+			if (requirement.criticality() != RequirementCriticality.CRITICAL) {
+				continue;
+			}
+			if (requirement.status() == RequirementStatus.MISSING) {
+				criticalMissing++;
+			}
+			if (requirement.status() == RequirementStatus.PARTIAL) {
+				hasCriticalPartial = true;
+			}
+		}
+
+		if (criticalMissing >= 2) {
+			return Math.min(baseScore, MULTIPLE_CRITICAL_MISSING_SCORE_CAP);
+		}
+		if (criticalMissing == 1) {
+			return Math.min(baseScore, SINGLE_CRITICAL_MISSING_SCORE_CAP);
+		}
+		if (hasCriticalPartial) {
+			return Math.min(baseScore, CRITICAL_PARTIAL_SCORE_CAP);
+		}
+		return baseScore;
 	}
 
 	private ScoreBreakdown emptyBreakdown() {

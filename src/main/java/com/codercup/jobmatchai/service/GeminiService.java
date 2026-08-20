@@ -10,6 +10,7 @@ import com.codercup.jobmatchai.exception.AnalysisConfigurationException;
 import com.codercup.jobmatchai.exception.InvalidAiResponseException;
 import com.codercup.jobmatchai.scoring.RequirementAssessment;
 import com.codercup.jobmatchai.scoring.RequirementCategory;
+import com.codercup.jobmatchai.scoring.RequirementCriticality;
 import com.codercup.jobmatchai.scoring.RequirementStatus;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -297,8 +298,8 @@ public class GeminiService {
 		Schema requirementSchema = Schema.builder()
 				.type(Type.Known.OBJECT)
 				.properties(buildRequirementSchemaProperties())
-				.required("name", "category", "status", "evidence")
-				.propertyOrdering("name", "category", "status", "evidence")
+				.required("name", "category", "criticality", "status", "evidence")
+				.propertyOrdering("name", "category", "criticality", "status", "evidence")
 				.build();
 		Schema requirementsSchema = Schema.builder()
 				.type(Type.Known.ARRAY)
@@ -385,6 +386,13 @@ public class GeminiService {
 						RequirementCategory.EXPERIENCE_SENIORITY.name(),
 						RequirementCategory.DESIRABLE.name(),
 						RequirementCategory.COMPLEMENTARY.name()
+				)
+				.build());
+		properties.put("criticality", Schema.builder()
+				.type(Type.Known.STRING)
+				.enum_(
+						RequirementCriticality.NORMAL.name(),
+						RequirementCriticality.CRITICAL.name()
 				)
 				.build());
 		properties.put("status", Schema.builder()
@@ -564,7 +572,7 @@ public class GeminiService {
 				  FASE A: extrae requisitos exclusivamente desde la oferta, sin usar el CV para decidir que requisitos existen.
 				  FASE B: evalua cada requisito extraido contra el CV.
 				- Devolve un elemento por cada requisito realmente presente en la oferta.
-				- Cada elemento debe tener name, category, status y evidence.
+				- Cada elemento debe tener name, category, criticality, status y evidence.
 				- name debe ser corto, estable y describir el requisito real de la oferta.
 				  Preferi nombres como "Java", "Spring Boot", "SQL", "Docker" o "5+ anos de experiencia web".
 				- evidence debe justificar solo la clasificacion, sin recomendaciones.
@@ -580,6 +588,8 @@ public class GeminiService {
 				  "Java" como MANDATORY_TECHNICAL y "5 anos con Java" como EXPERIENCE_SENIORITY.
 				- Usa exclusivamente estos valores de category:
 				  MANDATORY_TECHNICAL, EXPERIENCE_SENIORITY, DESIRABLE, COMPLEMENTARY.
+				- Usa exclusivamente estos valores de criticality:
+				  NORMAL, CRITICAL.
 				- Usa exclusivamente estos valores de status:
 				  MATCH, PARTIAL, MISSING.
 
@@ -597,6 +607,23 @@ public class GeminiService {
 				- PRIORIDAD 4, COMPLEMENTARY: otros requisitos profesionales explicitos como Git, Scrum, Agile,
 				  ingles, formacion o herramientas colaborativas, solo cuando no encajan en categorias anteriores.
 				  No uses COMPLEMENTARY como categoria generica para resolver dudas.
+
+				Criticality:
+				- NORMAL: requisito ponderado normal de la oferta.
+				- CRITICAL: requisito que la oferta presenta claramente como obligatorio, esencial, excluyente
+				  o capaz de limitar seriamente la candidatura si falta.
+				- Usa CRITICAL cuando la oferta indique must have, required, mandatory, essential, minimum X years,
+				  at least X years, X+ years required, indispensable, excluyente, requisito excluyente u obligatorio.
+				- No dependas solo de palabras clave: si una vacante Senior expresa "5+ anos de experiencia profesional",
+				  normalmente ese requisito de experiencia es CRITICAL aunque no diga "must".
+				- No inventes anos: "Senior" o "Sr." puede ser CRITICAL como seniority, pero no lo conviertas en
+				  "5 anos" si la oferta no lo dice.
+				- No marques como CRITICAL requisitos deseables u opcionales, como preferred, nice to have, plus,
+				  deseable o se valora.
+				- Docker preferred, Knowledge of Git, nice to have AWS, Agile o requisitos complementarios normalmente
+				  deben ser NORMAL.
+				- Una tecnologia puede ser CRITICAL solo si la oferta la presenta como imprescindible, por ejemplo
+				  "Strong React experience is required".
 
 				Status:
 				- Aplica las reglas de status en este orden:
@@ -799,8 +826,8 @@ public class GeminiService {
 		for (RequirementAssessment requirement : requirements) {
 			String name = normalizeRequiredText(requirement.name(), "requirement.name", 160);
 			String evidence = normalizeRequiredText(requirement.evidence(), "requirement.evidence", 1000);
-			if (requirement.category() == null || requirement.status() == null) {
-				throw invalidResponse("requirement category or status is null");
+			if (requirement.category() == null || requirement.criticality() == null || requirement.status() == null) {
+				throw invalidResponse("requirement category, criticality or status is null");
 			}
 			String key = normalizedKey(name);
 			if (!uniqueRequirements.add(key)) {
@@ -809,6 +836,7 @@ public class GeminiService {
 			normalizedRequirements.add(new RequirementAssessment(
 					name,
 					requirement.category(),
+					requirement.criticality(),
 					requirement.status(),
 					evidence
 			));

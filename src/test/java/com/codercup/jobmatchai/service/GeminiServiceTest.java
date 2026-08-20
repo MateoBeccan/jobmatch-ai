@@ -18,6 +18,7 @@ import com.codercup.jobmatchai.exception.AnalysisConfigurationException;
 import com.codercup.jobmatchai.exception.AiServiceUnavailableException;
 import com.codercup.jobmatchai.exception.InvalidAiResponseException;
 import com.codercup.jobmatchai.scoring.RequirementCategory;
+import com.codercup.jobmatchai.scoring.RequirementCriticality;
 import com.codercup.jobmatchai.scoring.RequirementStatus;
 import com.google.genai.errors.ApiException;
 import com.google.genai.errors.GenAiIOException;
@@ -48,6 +49,9 @@ class GeminiServiceTest {
 				.contains("EXPERIENCE_SENIORITY")
 				.contains("DESIRABLE")
 				.contains("COMPLEMENTARY")
+				.contains("criticality")
+				.contains("CRITICAL")
+				.contains("NORMAL")
 				.contains("MATCH")
 				.contains("PARTIAL")
 				.contains("MISSING")
@@ -192,12 +196,16 @@ class GeminiServiceTest {
 		));
 
 		Schema requirementSchema = schema.properties().get().get("requirements").items().get();
-		assertThat(requirementSchema.required()).contains(List.of("name", "category", "status", "evidence"));
+		assertThat(requirementSchema.required()).contains(List.of("name", "category", "criticality", "status", "evidence"));
 		assertThat(requirementSchema.properties().get().get("category").enum_()).contains(List.of(
 				"MANDATORY_TECHNICAL",
 				"EXPERIENCE_SENIORITY",
 				"DESIRABLE",
 				"COMPLEMENTARY"
+		));
+		assertThat(requirementSchema.properties().get().get("criticality").enum_()).contains(List.of(
+				"NORMAL",
+				"CRITICAL"
 		));
 		assertThat(requirementSchema.properties().get().get("status").enum_()).contains(List.of(
 				"MATCH",
@@ -228,6 +236,7 @@ class GeminiServiceTest {
 				    {
 				      "name": " Java ",
 				      "category": "MANDATORY_TECHNICAL",
+				      "criticality": "CRITICAL",
 				      "status": "MATCH",
 				      "evidence": " Java aparece en skills y proyectos. "
 				    }
@@ -248,6 +257,7 @@ class GeminiServiceTest {
 		assertThat(result.requirements().get(0).name()).isEqualTo("Java");
 		assertThat(result.requirements().get(0).evidence()).isEqualTo("Java aparece en skills y proyectos.");
 		assertThat(result.requirements().get(0).category()).isEqualTo(RequirementCategory.MANDATORY_TECHNICAL);
+		assertThat(result.requirements().get(0).criticality()).isEqualTo(RequirementCriticality.CRITICAL);
 		assertThat(result.requirements().get(0).status()).isEqualTo(RequirementStatus.MATCH);
 		assertThat(result.matchingSkills()).containsExactly("Java");
 		assertThat(result.missingSkills()).containsExactly("Docker");
@@ -268,6 +278,7 @@ class GeminiServiceTest {
 				    {
 				      "name": "Java",
 				      "category": "MANDATORY_TECHNICAL",
+				      "criticality": "NORMAL",
 				      "status": "MATCH",
 				      "evidence": "Java aparece en el CV."
 				    }
@@ -285,6 +296,44 @@ class GeminiServiceTest {
 				"""))
 				.isInstanceOf(InvalidAiResponseException.class)
 				.hasMessage("No se pudo interpretar la respuesta del servicio de analisis.");
+	}
+
+	@Test
+	void parseResponseAcceptsNormalAndCriticalRequirementCriticality() throws Exception {
+		GeminiService geminiService = new GeminiService("test-key", "test-model", 30000, 2, 500);
+
+		GeminiAnalysisResult result = parseResponse(geminiService, """
+				{
+				  "requirements": [
+				    {
+				      "name": "Java",
+				      "category": "MANDATORY_TECHNICAL",
+				      "criticality": "NORMAL",
+				      "status": "MATCH",
+				      "evidence": "Java aparece en el CV."
+				    },
+				    {
+				      "name": "5+ anos de experiencia profesional",
+				      "category": "EXPERIENCE_SENIORITY",
+				      "criticality": "CRITICAL",
+				      "status": "MISSING",
+				      "evidence": "El CV no demuestra ese nivel de experiencia profesional."
+				    }
+				  ],
+				  "matchingSkills": ["Java"],
+				  "missingSkills": ["5+ anos de experiencia profesional"],
+				  "recommendations": ["Preparar experiencia senior", "Destacar experiencia Java"],
+				  "interviewQuestions": ["Pregunta 1", "Pregunta 2", "Pregunta 3"],
+				  "jobSearchProfile": {
+				    "role": "Java Backend Developer",
+				    "seniority": "JUNIOR",
+				    "keywords": ["Java", "Spring Boot", "SQL"]
+				  }
+				}
+				""");
+
+		assertThat(result.requirements()).extracting("criticality")
+				.containsExactly(RequirementCriticality.NORMAL, RequirementCriticality.CRITICAL);
 	}
 
 	@Test
@@ -463,6 +512,7 @@ class GeminiServiceTest {
 				  "requirements": [
 				    {
 				      "category": "MANDATORY_TECHNICAL",
+				      "criticality": "NORMAL",
 				      "status": "MATCH",
 				      "evidence": "Java aparece en el CV."
 				    }
@@ -491,6 +541,7 @@ class GeminiServiceTest {
 				  "requirements": [
 				    {
 				      "name": "Java",
+				      "criticality": "NORMAL",
 				      "status": "MATCH",
 				      "evidence": "Java aparece en el CV."
 				    }
@@ -520,6 +571,7 @@ class GeminiServiceTest {
 				    {
 				      "name": "Java",
 				      "category": "MANDATORY_TECHNICAL",
+				      "criticality": "NORMAL",
 				      "evidence": "Java aparece en el CV."
 				    }
 				  ],
@@ -547,6 +599,50 @@ class GeminiServiceTest {
 				"MANDATORY_TECHNICAL",
 				"MATCH",
 				""
+		)))
+				.isInstanceOf(InvalidAiResponseException.class)
+				.hasMessage("No se pudo interpretar la respuesta del servicio de analisis.");
+	}
+
+	@Test
+	void parseResponseRejectsRequirementWithoutCriticality() {
+		GeminiService geminiService = new GeminiService("test-key", "test-model", 30000, 2, 500);
+
+		assertThatThrownBy(() -> parseResponse(geminiService, """
+				{
+				  "requirements": [
+				    {
+				      "name": "Java",
+				      "category": "MANDATORY_TECHNICAL",
+				      "status": "MATCH",
+				      "evidence": "Java aparece en el CV."
+				    }
+				  ],
+				  "matchingSkills": ["Java"],
+				  "missingSkills": [],
+				  "recommendations": ["Destacar Java", "Practicar entrevistas"],
+				  "interviewQuestions": ["Pregunta 1", "Pregunta 2", "Pregunta 3"],
+				  "jobSearchProfile": {
+				    "role": "Java Backend Developer",
+				    "seniority": "JUNIOR",
+				    "keywords": ["Java", "Spring Boot", "SQL"]
+				  }
+				}
+				"""))
+				.isInstanceOf(InvalidAiResponseException.class)
+				.hasMessage("No se pudo interpretar la respuesta del servicio de analisis.");
+	}
+
+	@Test
+	void parseResponseRejectsUnknownCriticality() {
+		GeminiService geminiService = new GeminiService("test-key", "test-model", 30000, 2, 500);
+
+		assertThatThrownBy(() -> parseResponse(geminiService, responseWithRequirement(
+				"Java",
+				"MANDATORY_TECHNICAL",
+				"VERY_HIGH",
+				"MATCH",
+				"Java aparece en el CV."
 		)))
 				.isInstanceOf(InvalidAiResponseException.class)
 				.hasMessage("No se pudo interpretar la respuesta del servicio de analisis.");
@@ -590,12 +686,14 @@ class GeminiServiceTest {
 				    {
 				      "name": "Spring Boot",
 				      "category": "MANDATORY_TECHNICAL",
+				      "criticality": "NORMAL",
 				      "status": "MATCH",
 				      "evidence": "Spring Boot aparece en el CV."
 				    },
 				    {
 				      "name": " spring boot ",
 				      "category": "MANDATORY_TECHNICAL",
+				      "criticality": "CRITICAL",
 				      "status": "PARTIAL",
 				      "evidence": "Spring Boot aparece en proyectos."
 				    }
@@ -692,6 +790,7 @@ class GeminiServiceTest {
 		assertThatThrownBy(() -> parseResponse(geminiService, responseWithRequirementAndLists(
 				"Docker",
 				"MANDATORY_TECHNICAL",
+				"NORMAL",
 				"MISSING",
 				"El CV no demuestra Docker.",
 				"[\" docker \"]",
@@ -851,6 +950,7 @@ class GeminiServiceTest {
 		assertThat(geminiService.attempts()).isEqualTo(2);
 		assertThat(response.requirements()).hasSize(1);
 		assertThat(response.requirements().get(0).category()).isEqualTo(RequirementCategory.MANDATORY_TECHNICAL);
+		assertThat(response.requirements().get(0).criticality()).isEqualTo(RequirementCriticality.NORMAL);
 		assertThat(response.requirements().get(0).status()).isEqualTo(RequirementStatus.MATCH);
 		assertThat(response.matchingSkills()).containsExactly("Java");
 	}
@@ -958,6 +1058,9 @@ class GeminiServiceTest {
 				.contains("MANDATORY_TECHNICAL")
 				.contains("PRIORIDAD 4")
 				.contains("COMPLEMENTARY")
+				.contains("criticality")
+				.contains("CRITICAL")
+				.contains("NORMAL")
 				.contains("clasificalo como MISSING")
 				.contains("No uses PARTIAL como resultado de incertidumbre")
 				.contains("\"Java o Kotlin\" debe ser un solo requirement")
@@ -1054,6 +1157,7 @@ class GeminiServiceTest {
 		return responseWithRequirementAndLists(
 				"Java",
 				"MANDATORY_TECHNICAL",
+				"NORMAL",
 				"MATCH",
 				"Java aparece en el CV.",
 				matchingSkillsJson,
@@ -1064,9 +1168,20 @@ class GeminiServiceTest {
 	}
 
 	private String responseWithRequirement(String name, String category, String status, String evidence) {
+		return responseWithRequirement(name, category, "NORMAL", status, evidence);
+	}
+
+	private String responseWithRequirement(
+			String name,
+			String category,
+			String criticality,
+			String status,
+			String evidence
+	) {
 		return responseWithRequirementAndLists(
 				name,
 				category,
+				criticality,
 				status,
 				evidence,
 				"[]",
@@ -1077,6 +1192,7 @@ class GeminiServiceTest {
 	private String responseWithRequirementAndLists(
 			String name,
 			String category,
+			String criticality,
 			String status,
 			String evidence,
 			String matchingSkillsJson,
@@ -1085,6 +1201,7 @@ class GeminiServiceTest {
 		return responseWithRequirementAndLists(
 				name,
 				category,
+				criticality,
 				status,
 				evidence,
 				matchingSkillsJson,
@@ -1097,6 +1214,7 @@ class GeminiServiceTest {
 	private String responseWithRequirementAndLists(
 			String name,
 			String category,
+			String criticality,
 			String status,
 			String evidence,
 			String matchingSkillsJson,
@@ -1110,6 +1228,7 @@ class GeminiServiceTest {
 				    {
 				      "name": "%s",
 				      "category": "%s",
+				      "criticality": "%s",
 				      "status": "%s",
 				      "evidence": "%s"
 				    }
@@ -1127,6 +1246,7 @@ class GeminiServiceTest {
 				""".formatted(
 						name,
 						category,
+						criticality,
 						status,
 						evidence,
 						matchingSkillsJson,
@@ -1143,6 +1263,7 @@ class GeminiServiceTest {
 				    {
 				      "name": "Java",
 				      "category": "MANDATORY_TECHNICAL",
+				      "criticality": "NORMAL",
 				      "status": "MATCH",
 				      "evidence": "Java aparece en el CV."
 				    }
