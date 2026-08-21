@@ -1,6 +1,6 @@
 # JobMatch AI
 
-Plataforma web que analiza la compatibilidad entre un CV y una oferta laboral usando **Google Gemini** y calcula un porcentaje determinista de coincidencia mediante Java. Desarrollada como proyecto academico para **CoderCUP IA 2026** por [Mateo Beccan](https://github.com/MateoBeccan) y [Francisco Lorenzo]([https://github.com/francisco Lorenzo](https://github.com/franLorenzo28)).
+Plataforma web que analiza la compatibilidad entre un CV y una oferta laboral usando **Google Gemini** y calcula un porcentaje determinista de coincidencia mediante Java. Desarrollada como proyecto academico para **CoderCUP IA 2026** por [Mateo Beccan](https://github.com/MateoBeccan) y [Francisco Lorenzo](https://github.com/franLorenzo28)).
 
 **Frontend:** React 19 + TypeScript + Vite + Tailwind CSS  
 **Backend:** Spring Boot 4.1.0 + Java 21 + H2 + Spring Security  
