@@ -26,15 +26,23 @@ export function getRequirementLabel(status: RequirementStatus) {
 export function buildScoreExplanation(result: AnalysisResponse): ScoreExplanation {
   const requirements = result.requirements ?? []
   const factors: ScoreFactor[] = []
+  const explainedElsewhere = new Set(
+    [
+      ...(result.criticalMissingRequirements ?? []).map((requirement) => requirement.requirement),
+      result.experienceGap?.requirement,
+    ]
+      .filter((value): value is string => Boolean(value))
+      .map(normalizeName),
+  )
 
   const matched = requirements.filter((requirement) => requirement.status === 'match')
-  const partial = requirements.filter((requirement) => requirement.status === 'partial')
-  const missing = requirements.filter((requirement) => requirement.status === 'missing')
+  const partial = requirements.filter((requirement) => requirement.status === 'partial' && !explainedElsewhere.has(normalizeName(requirement.name)))
+  const missing = requirements.filter((requirement) => requirement.status === 'missing' && !explainedElsewhere.has(normalizeName(requirement.name)))
 
   if (matched.length > 0) {
     factors.push({
       type: 'positive',
-      text: `Tenés experiencia con ${listNames(matched)}.`,
+      text: `Tenés experiencia con ${listNames(matched.slice(0, 4))}.`,
     })
   }
   if (requirements.length > 0) {
@@ -43,24 +51,22 @@ export function buildScoreExplanation(result: AnalysisResponse): ScoreExplanatio
       text: `Cumplís ${matched.length} de ${requirements.length} requisitos principales de la oferta.`,
     })
   }
-  partial.slice(0, 3).forEach((requirement) => {
+  partial.slice(0, 1).forEach((requirement) => {
     factors.push({
       type: 'partial',
-      text: `${requirement.name} no aparece de forma clara en tu CV.`,
+      text: `${requirement.name} aparece, pero podría comunicarse con más claridad.`,
     })
   })
-  missing.slice(0, 3).forEach((requirement) => {
+  missing.slice(0, 1).forEach((requirement) => {
     factors.push({
       type: 'missing',
-      text: `No encontramos experiencia con ${requirement.name}.`,
+      text: `El principal gap técnico visible es ${requirement.name}.`,
     })
   })
 
   return {
-    summary:
-      `Tu compatibilidad es ${result.matchPercentage}% principalmente por los requisitos que la oferta considera ` +
-      `prioritarios y cómo se reflejan en tu CV.`,
-    factors,
+    summary: `Tu compatibilidad es ${result.matchPercentage}% por la cobertura de requisitos y cómo se reflejan en tu CV.`,
+    factors: factors.slice(0, 4),
   }
 }
 
@@ -73,23 +79,25 @@ export function buildCvSuggestions(result: AnalysisResponse): CvSuggestion[] {
   const requirements = result.requirements ?? []
 
   requirements.forEach((requirement, index) => {
+    if (isExplainedByCriticalOrExperience(result, requirement.name)) return
+
     if (requirement.status === 'missing') {
       suggestions.push({
         id: `missing-${index}`,
         type: 'skill',
-        title: `${requirement.name} no aparece en tu CV`,
+        title: `Hacer visible experiencia real con ${requirement.name}`,
         detail: requirement.evidence
-          ? `La oferta menciona ${requirement.name} y no encontramos esa tecnología en tu CV.`
-          : `La oferta menciona ${requirement.name} y no encontramos evidencia de esa tecnología.`,
-        action: `Si tenés experiencia real con ${requirement.name}, considerá destacarla en la sección de proyectos o experiencia.`,
+          ? `La oferta menciona ${requirement.name}, pero el CV no muestra una evidencia concreta y verificable.`
+          : `La oferta menciona ${requirement.name}, pero el CV no muestra evidencia concreta.`,
+        action: `Si tenés experiencia real con ${requirement.name}, incorporala con contexto: proyecto, responsabilidad, stack y resultado.`,
       })
     } else if (requirement.status === 'partial') {
       suggestions.push({
         id: `partial-${index}`,
         type: 'wording',
         title: `Experiencia con ${requirement.name} poco visible`,
-        detail: `Aparece ${requirement.name}, pero no se entiende con claridad qué nivel de dominio tenés.`,
-        action: `Reformulá la mención de ${requirement.name} para que se vea tu experiencia concreta (proyecto, tiempo, resultado).`,
+        detail: `Aparece ${requirement.name}, pero no queda claro el nivel de dominio ni el contexto de uso.`,
+        action: `Reformulá la mención de ${requirement.name} para que se vea tu experiencia concreta: proyecto, tiempo, responsabilidad y resultado.`,
       })
     }
   })
@@ -103,7 +111,7 @@ export function computeHistoryStats(records: AnalysisSummary[]): HistoryStats {
   }
 
   const scores = records.map((record) => record.score)
-  const averageScore = Math.round(scores.reduce((sum, score) => sum + score, 0) / scores.length)
+  const averageScore = Math.round(scores.reduce((sum, score) => sum + score, 0) / records.length)
   const bestScore = Math.max(...scores)
 
   const sorted = [...records].sort((a, b) => a.createdAt - b.createdAt)
@@ -169,4 +177,14 @@ function listNames(requirements: Array<Pick<RequirementMatch, 'name'>>) {
   if (names.length === 0) return ''
   if (names.length === 1) return names[0]
   return `${names.slice(0, -1).join(', ')} y ${names[names.length - 1]}`
+}
+
+function isExplainedByCriticalOrExperience(result: AnalysisResponse, name: string) {
+  const normalized = normalizeName(name)
+  return (result.criticalMissingRequirements ?? []).some((requirement) => normalizeName(requirement.requirement) === normalized)
+    || normalizeName(result.experienceGap?.requirement ?? '') === normalized
+}
+
+function normalizeName(value: string) {
+  return value.trim().toLowerCase()
 }

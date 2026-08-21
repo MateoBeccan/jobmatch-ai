@@ -40,6 +40,26 @@ function isBreakdown(value: unknown) {
   return keys.every((key) => value[key] === undefined || isScore(value[key]))
 }
 
+function isCriticalMissingRequirements(value: unknown) {
+  if (value === undefined) return true
+  if (!Array.isArray(value)) return false
+  return value.every((item) => {
+    if (!isRecord(item)) return false
+    return typeof item.requirement === 'string'
+      && typeof item.category === 'string'
+      && typeof item.evidence === 'string'
+  })
+}
+
+function isExperienceGap(value: unknown) {
+  if (value === undefined || value === null) return true
+  if (!isRecord(value)) return false
+  return typeof value.requirement === 'string'
+    && isRequirementStatus(value.status)
+    && typeof value.critical === 'boolean'
+    && typeof value.summary === 'string'
+}
+
 function isJobSeniority(value: unknown) {
   return value === 'TRAINEE'
     || value === 'JUNIOR'
@@ -73,6 +93,9 @@ function isHistoryRecord(value: unknown): value is HistoryRecord {
     && isScore(result.matchPercentage)
     && isStringArray(result.matchingSkills)
     && isStringArray(result.missingSkills)
+    && isCriticalMissingRequirements(result.criticalMissingRequirements)
+    && isExperienceGap(result.experienceGap)
+    && (result.warnings === undefined || isStringArray(result.warnings))
     && isStringArray(result.recommendations)
     && isStringArray(result.interviewQuestions)
     && isRequirements(result.requirements)

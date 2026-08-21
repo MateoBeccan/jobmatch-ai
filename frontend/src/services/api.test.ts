@@ -7,6 +7,9 @@ const analysisResponse: AnalysisResponse = {
   matchPercentage: 82,
   matchingSkills: ['Java'],
   missingSkills: ['Docker'],
+  criticalMissingRequirements: [],
+  experienceGap: null,
+  warnings: [],
   recommendations: ['Practicar Docker'],
   interviewQuestions: ['Como disenarias una API REST?'],
   requirements: [
@@ -100,6 +103,58 @@ describe('api', () => {
       'Java developer role',
       null,
     )).resolves.toEqual(analysisResponse)
+  })
+
+  it('normalizes explanatory fields from new analysis responses', async () => {
+    const response: AnalysisResponse = {
+      ...analysisResponse,
+      matchPercentage: 69,
+      criticalMissingRequirements: [
+        {
+          requirement: '5+ anos de experiencia profesional',
+          category: 'experience_seniority',
+          evidence: 'No se encontro evidencia suficiente.',
+        },
+      ],
+      experienceGap: {
+        requirement: '5+ anos de experiencia profesional',
+        status: 'missing',
+        critical: true,
+        summary: 'La experiencia requerida no esta respaldada por el CV.',
+      },
+      warnings: ['El score esta limitado por requisitos criticos no cumplidos.'],
+    }
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(response)))
+
+    await expect(analyzeCV(
+      new File(['cv'], 'cv.pdf', { type: 'application/pdf' }),
+      'text',
+      'Java developer role',
+      null,
+    )).resolves.toMatchObject({
+      criticalMissingRequirements: response.criticalMissingRequirements,
+      experienceGap: response.experienceGap,
+      warnings: response.warnings,
+    })
+  })
+
+  it('normalizes historical-compatible analysis responses without explanatory fields', async () => {
+    const response = { ...analysisResponse }
+    delete response.criticalMissingRequirements
+    delete response.experienceGap
+    delete response.warnings
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(response)))
+
+    await expect(analyzeCV(
+      new File(['cv'], 'cv.pdf', { type: 'application/pdf' }),
+      'text',
+      'Java developer role',
+      null,
+    )).resolves.toMatchObject({
+      criticalMissingRequirements: [],
+      experienceGap: null,
+      warnings: [],
+    })
   })
 
   it('sends jobImage instead of jobDescription in image mode', async () => {
@@ -441,6 +496,25 @@ describe('api', () => {
 
     expect(getHistory().map((record) => record.id)).toEqual(['old-record'])
     expect(getHistory()[0].result.jobSearchProfile).toBeUndefined()
+  })
+
+  it('rehydrates old local history records without explanatory fields', async () => {
+    const legacyAnalysisResponse = { ...analysisResponse }
+    delete legacyAnalysisResponse.criticalMissingRequirements
+    delete legacyAnalysisResponse.experienceGap
+    delete legacyAnalysisResponse.warnings
+    storage.setItem(HISTORY_STORAGE_KEY, JSON.stringify([
+      historyRecord({ id: 'old-explainability', result: legacyAnalysisResponse }),
+    ]))
+
+    await expect(getAnalysis('old-explainability')).resolves.toMatchObject({
+      id: 'old-explainability',
+      result: {
+        criticalMissingRequirements: [],
+        experienceGap: null,
+        warnings: [],
+      },
+    })
   })
 
   it('recovers a history record by id', async () => {
