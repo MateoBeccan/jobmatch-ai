@@ -19,7 +19,7 @@ public class MatchScoreCalculator {
 	 */
 	public MatchScoreResult calculate(List<RequirementAssessment> requirements) {
 		if (requirements == null || requirements.isEmpty()) {
-			return new MatchScoreResult(0, emptyBreakdown());
+			return new MatchScoreResult(0, emptyBreakdown(), 0, false, 0, 0);
 		}
 
 		Map<RequirementCategory, CategoryAccumulator> accumulators = new EnumMap<>(RequirementCategory.class);
@@ -37,16 +37,27 @@ public class MatchScoreCalculator {
 			totalPresentWeight += category.weight();
 		}
 
-		int matchPercentage = totalPresentWeight == 0
+		int basePercentage = totalPresentWeight == 0
 				? 0
 				: (int) Math.round((weightedPoints / totalPresentWeight) * 100);
+		CriticalRequirementPolicyResult criticalPolicy = applyCriticalRequirementPolicy(basePercentage, requirements);
 
-		return new MatchScoreResult(applyCriticalRequirementPolicy(matchPercentage, requirements), buildBreakdown(accumulators));
+		return new MatchScoreResult(
+				criticalPolicy.finalScore(),
+				buildBreakdown(accumulators),
+				basePercentage,
+				criticalPolicy.capApplied(),
+				criticalPolicy.criticalMissingCount(),
+				criticalPolicy.criticalPartialCount()
+		);
 	}
 
-	private int applyCriticalRequirementPolicy(int baseScore, List<RequirementAssessment> requirements) {
+	private CriticalRequirementPolicyResult applyCriticalRequirementPolicy(
+			int baseScore,
+			List<RequirementAssessment> requirements
+	) {
 		int criticalMissing = 0;
-		boolean hasCriticalPartial = false;
+		int criticalPartial = 0;
 		for (RequirementAssessment requirement : requirements) {
 			if (requirement.criticality() != RequirementCriticality.CRITICAL) {
 				continue;
@@ -55,20 +66,26 @@ public class MatchScoreCalculator {
 				criticalMissing++;
 			}
 			if (requirement.status() == RequirementStatus.PARTIAL) {
-				hasCriticalPartial = true;
+				criticalPartial++;
 			}
 		}
 
+		int finalScore = baseScore;
 		if (criticalMissing >= 2) {
-			return Math.min(baseScore, MULTIPLE_CRITICAL_MISSING_SCORE_CAP);
+			finalScore = Math.min(baseScore, MULTIPLE_CRITICAL_MISSING_SCORE_CAP);
 		}
-		if (criticalMissing == 1) {
-			return Math.min(baseScore, SINGLE_CRITICAL_MISSING_SCORE_CAP);
+		else if (criticalMissing == 1) {
+			finalScore = Math.min(baseScore, SINGLE_CRITICAL_MISSING_SCORE_CAP);
 		}
-		if (hasCriticalPartial) {
-			return Math.min(baseScore, CRITICAL_PARTIAL_SCORE_CAP);
+		else if (criticalPartial > 0) {
+			finalScore = Math.min(baseScore, CRITICAL_PARTIAL_SCORE_CAP);
 		}
-		return baseScore;
+		return new CriticalRequirementPolicyResult(
+				finalScore,
+				finalScore < baseScore,
+				criticalMissing,
+				criticalPartial
+		);
 	}
 
 	private ScoreBreakdown emptyBreakdown() {
@@ -108,5 +125,13 @@ public class MatchScoreCalculator {
 		private double ratio() {
 			return factorSum / count;
 		}
+	}
+
+	private record CriticalRequirementPolicyResult(
+			int finalScore,
+			boolean capApplied,
+			int criticalMissingCount,
+			int criticalPartialCount
+	) {
 	}
 }

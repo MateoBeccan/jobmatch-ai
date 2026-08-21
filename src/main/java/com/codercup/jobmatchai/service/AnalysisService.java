@@ -1,6 +1,8 @@
 package com.codercup.jobmatchai.service;
 
 import com.codercup.jobmatchai.dto.AnalysisResponse;
+import com.codercup.jobmatchai.dto.CriticalRequirementGapResponse;
+import com.codercup.jobmatchai.dto.ExperienceGapResponse;
 import com.codercup.jobmatchai.dto.JobSearchProfileResponse;
 import com.codercup.jobmatchai.dto.RequirementResponse;
 import com.codercup.jobmatchai.dto.ScoreBreakdownResponse;
@@ -8,8 +10,16 @@ import com.codercup.jobmatchai.dto.internal.GeminiAnalysisResult;
 import com.codercup.jobmatchai.exception.InvalidAnalysisRequestException;
 import com.codercup.jobmatchai.scoring.MatchScoreCalculator;
 import com.codercup.jobmatchai.scoring.MatchScoreResult;
+import com.codercup.jobmatchai.scoring.RequirementAssessment;
+import com.codercup.jobmatchai.scoring.RequirementCategory;
+import com.codercup.jobmatchai.scoring.RequirementCriticality;
+import com.codercup.jobmatchai.scoring.RequirementStatus;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
@@ -138,16 +148,22 @@ public class AnalysisService {
 
 	private AnalysisResponse buildAnalysisResponse(GeminiAnalysisResult aiResult) {
 		MatchScoreResult score = matchScoreCalculator.calculate(aiResult.requirements());
+		List<CriticalRequirementGapResponse> criticalMissingRequirements =
+				extractCriticalMissingRequirements(aiResult.requirements());
+		ExperienceGapResponse experienceGap = determineExperienceGap(aiResult.requirements());
 		return new AnalysisResponse(
 				score.matchPercentage(),
 				aiResult.matchingSkills(),
 				aiResult.missingSkills(),
+				criticalMissingRequirements,
+				experienceGap,
+				buildWarnings(score, criticalMissingRequirements, experienceGap),
 				aiResult.recommendations(),
 				aiResult.interviewQuestions(),
 				aiResult.requirements().stream()
 						.map(requirement -> new RequirementResponse(
 								requirement.name(),
-								requirement.category().name().toLowerCase(Locale.ROOT),
+								formatCategory(requirement.category()),
 								requirement.status().name().toLowerCase(Locale.ROOT),
 								requirement.evidence()
 						))
@@ -164,6 +180,99 @@ public class AnalysisService {
 						aiResult.jobSearchProfile().keywords()
 				)
 		);
+	}
+
+	private List<CriticalRequirementGapResponse> extractCriticalMissingRequirements(
+			List<RequirementAssessment> requirements
+	) {
+		return requirements.stream()
+				.filter(requirement -> requirement.criticality() == RequirementCriticality.CRITICAL)
+				.filter(requirement -> requirement.status() == RequirementStatus.MISSING)
+				.map(requirement -> new CriticalRequirementGapResponse(
+						requirement.name(),
+						formatCategory(requirement.category()),
+						requirement.evidence()
+				))
+				.toList();
+	}
+
+	private ExperienceGapResponse determineExperienceGap(List<RequirementAssessment> requirements) {
+		Optional<RequirementAssessment> experienceRequirement = requirements.stream()
+				.filter(requirement -> requirement.category() == RequirementCategory.EXPERIENCE_SENIORITY)
+				.filter(requirement -> requirement.status() == RequirementStatus.MISSING
+						|| requirement.status() == RequirementStatus.PARTIAL)
+				.min(Comparator.comparingInt(this::experienceGapPriority));
+
+		return experienceRequirement
+				.map(requirement -> new ExperienceGapResponse(
+						requirement.name(),
+						requirement.status().name().toLowerCase(Locale.ROOT),
+						requirement.criticality() == RequirementCriticality.CRITICAL,
+						buildExperienceGapSummary(requirement)
+				))
+				.orElse(null);
+	}
+
+	private int experienceGapPriority(RequirementAssessment requirement) {
+		if (requirement.criticality() == RequirementCriticality.CRITICAL
+				&& requirement.status() == RequirementStatus.MISSING) {
+			return 0;
+		}
+		if (requirement.criticality() == RequirementCriticality.CRITICAL
+				&& requirement.status() == RequirementStatus.PARTIAL) {
+			return 1;
+		}
+		if (requirement.status() == RequirementStatus.MISSING) {
+			return 2;
+		}
+		return 3;
+	}
+
+	private String buildExperienceGapSummary(RequirementAssessment requirement) {
+		if (requirement.evidence() != null && !requirement.evidence().isBlank()) {
+			return requirement.evidence();
+		}
+		if (requirement.status() == RequirementStatus.PARTIAL) {
+			return "La experiencia requerida esta parcialmente respaldada por el CV.";
+		}
+		return "La experiencia requerida no esta respaldada por el CV.";
+	}
+
+	private List<String> buildWarnings(
+			MatchScoreResult score,
+			List<CriticalRequirementGapResponse> criticalMissingRequirements,
+			ExperienceGapResponse experienceGap
+	) {
+		List<String> warnings = new ArrayList<>();
+		int criticalMissingCount = criticalMissingRequirements.size();
+		if (criticalMissingCount == 1) {
+			warnings.add("Falta 1 requisito critico de la oferta.");
+		}
+		else if (criticalMissingCount > 1) {
+			warnings.add("Faltan " + criticalMissingCount + " requisitos criticos de la oferta.");
+		}
+		if (score.criticalPartialCount() == 1) {
+			warnings.add("Un requisito critico se cumple parcialmente.");
+		}
+		else if (score.criticalPartialCount() > 1) {
+			warnings.add("Varios requisitos criticos se cumplen parcialmente.");
+		}
+		if (experienceGap != null) {
+			warnings.add("La experiencia profesional requerida no esta completamente respaldada por el CV.");
+		}
+		if (score.criticalCapApplied()) {
+			if (score.criticalMissingCount() > 0) {
+				warnings.add("El score esta limitado por requisitos criticos no cumplidos.");
+			}
+			else {
+				warnings.add("El score esta limitado por un requisito critico parcialmente cumplido.");
+			}
+		}
+		return List.copyOf(warnings);
+	}
+
+	private String formatCategory(RequirementCategory category) {
+		return category.name().toLowerCase(Locale.ROOT);
 	}
 
 }

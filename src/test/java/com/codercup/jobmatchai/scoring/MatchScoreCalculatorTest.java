@@ -100,6 +100,10 @@ class MatchScoreCalculatorTest {
 		));
 
 		assertThat(result.matchPercentage()).isEqualTo(85);
+		assertThat(result.basePercentage()).isEqualTo(90);
+		assertThat(result.criticalCapApplied()).isTrue();
+		assertThat(result.criticalMissingCount()).isZero();
+		assertThat(result.criticalPartialCount()).isEqualTo(1);
 		assertThat(result.breakdown()).isEqualTo(new ScoreBreakdown(100, 50, 100, 100));
 	}
 
@@ -115,6 +119,10 @@ class MatchScoreCalculatorTest {
 		));
 
 		assertThat(result.matchPercentage()).isEqualTo(69);
+		assertThat(result.basePercentage()).isEqualTo(80);
+		assertThat(result.criticalCapApplied()).isTrue();
+		assertThat(result.criticalMissingCount()).isEqualTo(1);
+		assertThat(result.criticalPartialCount()).isZero();
 		assertThat(result.breakdown()).isEqualTo(new ScoreBreakdown(100, 0, 100, 100));
 	}
 
@@ -129,6 +137,9 @@ class MatchScoreCalculatorTest {
 		));
 
 		assertThat(result.matchPercentage()).isEqualTo(54);
+		assertThat(result.basePercentage()).isEqualTo(70);
+		assertThat(result.criticalCapApplied()).isTrue();
+		assertThat(result.criticalMissingCount()).isEqualTo(2);
 		assertThat(result.breakdown()).isEqualTo(new ScoreBreakdown(100, 0, 100, 0));
 	}
 
@@ -181,6 +192,9 @@ class MatchScoreCalculatorTest {
 		));
 
 		assertThat(result.matchPercentage()).isEqualTo(11);
+		assertThat(result.basePercentage()).isEqualTo(11);
+		assertThat(result.criticalCapApplied()).isFalse();
+		assertThat(result.criticalMissingCount()).isEqualTo(1);
 		assertThat(result.breakdown()).isEqualTo(new ScoreBreakdown(0, 0, 100, null));
 	}
 

@@ -11,6 +11,7 @@ import com.codercup.jobmatchai.exception.InvalidCvContentException;
 import com.codercup.jobmatchai.scoring.MatchScoreCalculator;
 import com.codercup.jobmatchai.scoring.RequirementAssessment;
 import com.codercup.jobmatchai.scoring.RequirementCategory;
+import com.codercup.jobmatchai.scoring.RequirementCriticality;
 import com.codercup.jobmatchai.scoring.RequirementStatus;
 import java.util.List;
 import java.awt.image.BufferedImage;
@@ -47,6 +48,11 @@ class AnalysisServiceTest {
 		assertThat(response.requirements()).extracting("status")
 				.containsExactly("match", "match", "match", "missing", "missing", "match", "missing", "match");
 		assertThat(response.breakdown()).isNotNull();
+		assertThat(response.criticalMissingRequirements()).isEmpty();
+		assertThat(response.experienceGap()).isNotNull();
+		assertThat(response.experienceGap().requirement()).isEqualTo("5 anos de experiencia");
+		assertThat(response.warnings())
+				.containsExactly("La experiencia profesional requerida no esta completamente respaldada por el CV.");
 		assertThat(response.jobSearchProfile()).isNotNull();
 		assertThat(response.jobSearchProfile().role()).isEqualTo("Java Backend Developer");
 		assertThat(response.jobSearchProfile().seniority()).isEqualTo(JobSeniority.JUNIOR);
@@ -111,6 +117,173 @@ class AnalysisServiceTest {
 	}
 
 	@Test
+	void responseHasEmptyExplanationFieldsWhenThereAreNoGaps() {
+		AnalysisResponse response = analyze(List.of(
+				assessment("Java", RequirementCategory.MANDATORY_TECHNICAL, RequirementStatus.MATCH),
+				assessment("Spring Boot", RequirementCategory.MANDATORY_TECHNICAL, RequirementStatus.MATCH)
+		));
+
+		assertThat(response.criticalMissingRequirements()).isEmpty();
+		assertThat(response.experienceGap()).isNull();
+		assertThat(response.warnings()).isEmpty();
+	}
+
+	@Test
+	void responseIncludesOneCriticalMissingRequirement() {
+		AnalysisResponse response = analyze(List.of(
+				assessment("Java", RequirementCategory.MANDATORY_TECHNICAL, RequirementStatus.MATCH),
+				assessment(
+						"Fluent English required",
+						RequirementCategory.COMPLEMENTARY,
+						RequirementCriticality.CRITICAL,
+						RequirementStatus.MISSING
+				)
+		));
+
+		assertThat(response.criticalMissingRequirements()).hasSize(1);
+		assertThat(response.criticalMissingRequirements().get(0).requirement()).isEqualTo("Fluent English required");
+		assertThat(response.criticalMissingRequirements().get(0).category()).isEqualTo("complementary");
+		assertThat(response.warnings())
+				.contains(
+						"Falta 1 requisito critico de la oferta.",
+						"El score esta limitado por requisitos criticos no cumplidos."
+				);
+	}
+
+	@Test
+	void responseIncludesAllCriticalMissingRequirementsWithPluralWarning() {
+		AnalysisResponse response = analyze(List.of(
+				assessment("Java", RequirementCategory.MANDATORY_TECHNICAL, RequirementStatus.MATCH),
+				assessment(
+						"5+ anos de experiencia profesional",
+						RequirementCategory.EXPERIENCE_SENIORITY,
+						RequirementCriticality.CRITICAL,
+						RequirementStatus.MISSING
+				),
+				assessment(
+						"AWS certification required",
+						RequirementCategory.COMPLEMENTARY,
+						RequirementCriticality.CRITICAL,
+						RequirementStatus.MISSING
+				)
+		));
+
+		assertThat(response.criticalMissingRequirements()).extracting("requirement")
+				.containsExactly("5+ anos de experiencia profesional", "AWS certification required");
+		assertThat(response.warnings())
+				.contains(
+						"Faltan 2 requisitos criticos de la oferta.",
+						"El score esta limitado por requisitos criticos no cumplidos."
+				);
+	}
+
+	@Test
+	void criticalPartialDoesNotEnterCriticalMissingRequirementsButWarns() {
+		AnalysisResponse response = analyze(List.of(
+				assessment("Java", RequirementCategory.MANDATORY_TECHNICAL, RequirementStatus.MATCH),
+				assessment(
+						"Strong React experience is required",
+						RequirementCategory.MANDATORY_TECHNICAL,
+						RequirementCriticality.CRITICAL,
+						RequirementStatus.PARTIAL
+				),
+				assessment("SQL", RequirementCategory.MANDATORY_TECHNICAL, RequirementStatus.MATCH)
+		));
+
+		assertThat(response.criticalMissingRequirements()).isEmpty();
+		assertThat(response.warnings())
+				.contains("Un requisito critico se cumple parcialmente.");
+	}
+
+	@Test
+	void experienceCriticalMissingCreatesExperienceGap() {
+		AnalysisResponse response = analyze(List.of(
+				assessment("Java", RequirementCategory.MANDATORY_TECHNICAL, RequirementStatus.MATCH),
+				assessment(
+						"5+ anos de experiencia profesional",
+						RequirementCategory.EXPERIENCE_SENIORITY,
+						RequirementCriticality.CRITICAL,
+						RequirementStatus.MISSING,
+						"El CV no demuestra 5 anos de experiencia profesional."
+				)
+		));
+
+		assertThat(response.experienceGap()).isNotNull();
+		assertThat(response.experienceGap().requirement()).isEqualTo("5+ anos de experiencia profesional");
+		assertThat(response.experienceGap().status()).isEqualTo("missing");
+		assertThat(response.experienceGap().critical()).isTrue();
+		assertThat(response.experienceGap().summary())
+				.isEqualTo("El CV no demuestra 5 anos de experiencia profesional.");
+	}
+
+	@Test
+	void experienceCriticalPartialCreatesExperienceGap() {
+		AnalysisResponse response = analyze(List.of(
+				assessment("Java", RequirementCategory.MANDATORY_TECHNICAL, RequirementStatus.MATCH),
+				assessment(
+						"3+ anos de experiencia Java",
+						RequirementCategory.EXPERIENCE_SENIORITY,
+						RequirementCriticality.CRITICAL,
+						RequirementStatus.PARTIAL
+				)
+		));
+
+		assertThat(response.criticalMissingRequirements()).isEmpty();
+		assertThat(response.experienceGap()).isNotNull();
+		assertThat(response.experienceGap().status()).isEqualTo("partial");
+		assertThat(response.experienceGap().critical()).isTrue();
+		assertThat(response.warnings())
+				.contains("La experiencia profesional requerida no esta completamente respaldada por el CV.");
+	}
+
+	@Test
+	void experienceGapPriorityChoosesCriticalMissingBeforeOtherExperienceGaps() {
+		AnalysisResponse response = analyze(List.of(
+				assessment(
+						"1 ano de experiencia profesional",
+						RequirementCategory.EXPERIENCE_SENIORITY,
+						RequirementCriticality.NORMAL,
+						RequirementStatus.MISSING
+				),
+				assessment(
+						"5+ anos de experiencia profesional",
+						RequirementCategory.EXPERIENCE_SENIORITY,
+						RequirementCriticality.CRITICAL,
+						RequirementStatus.MISSING
+				),
+				assessment(
+						"Senior Java Developer",
+						RequirementCategory.EXPERIENCE_SENIORITY,
+						RequirementCriticality.CRITICAL,
+						RequirementStatus.PARTIAL
+				)
+		));
+
+		assertThat(response.experienceGap()).isNotNull();
+		assertThat(response.experienceGap().requirement()).isEqualTo("5+ anos de experiencia profesional");
+	}
+
+	@Test
+	void criticalCapWarningOnlyAppearsWhenScoreWasActuallyLimited() {
+		AnalysisResponse response = analyze(List.of(
+				assessment("Java", RequirementCategory.MANDATORY_TECHNICAL, RequirementStatus.MISSING),
+				assessment("Spring Boot", RequirementCategory.MANDATORY_TECHNICAL, RequirementStatus.MISSING),
+				assessment(
+						"5+ anos de experiencia profesional",
+						RequirementCategory.EXPERIENCE_SENIORITY,
+						RequirementCriticality.CRITICAL,
+						RequirementStatus.MISSING
+				),
+				assessment("Docker preferred", RequirementCategory.DESIRABLE, RequirementStatus.MATCH)
+		));
+
+		assertThat(response.matchPercentage()).isEqualTo(11);
+		assertThat(response.warnings())
+				.contains("Falta 1 requisito critico de la oferta.")
+				.doesNotContain("El score esta limitado por requisitos criticos no cumplidos.");
+	}
+
+	@Test
 	void invalidCvContentStopsBeforeGeminiAndScoring() {
 		TrackingCvContentValidator validator = new TrackingCvContentValidator(true);
 		FakeGeminiService geminiService = new FakeGeminiService(integrationResult());
@@ -157,12 +330,55 @@ class AnalysisServiceTest {
 		);
 	}
 
+	private AnalysisResponse analyze(List<RequirementAssessment> requirements) {
+		AnalysisService analysisService = new AnalysisService(
+				new FakePdfService(),
+				new FakeGeminiService(resultWithRequirements(requirements)),
+				new MatchScoreCalculator()
+		);
+		return analysisService.analyze(validCvFile(), "Java developer role", null);
+	}
+
+	private GeminiAnalysisResult resultWithRequirements(List<RequirementAssessment> requirements) {
+		return new GeminiAnalysisResult(
+				requirements,
+				List.of("Java"),
+				List.of("Docker"),
+				List.of("Reforzar gaps especificos", "Preparar entrevista tecnica"),
+				List.of("Pregunta 1", "Pregunta 2", "Pregunta 3"),
+				new GeminiJobSearchProfile(
+						"Java Backend Developer",
+						JobSeniority.JUNIOR,
+						List.of("Java", "Spring Boot", "SQL")
+				)
+		);
+	}
+
 	private RequirementAssessment assessment(
 			String name,
 			RequirementCategory category,
 			RequirementStatus status
 	) {
 		return new RequirementAssessment(name, category, status, "Evidencia de test");
+	}
+
+	private RequirementAssessment assessment(
+			String name,
+			RequirementCategory category,
+			RequirementCriticality criticality,
+			RequirementStatus status
+	) {
+		return assessment(name, category, criticality, status, "Evidencia de test");
+	}
+
+	private RequirementAssessment assessment(
+			String name,
+			RequirementCategory category,
+			RequirementCriticality criticality,
+			RequirementStatus status,
+			String evidence
+	) {
+		return new RequirementAssessment(name, category, criticality, status, evidence);
 	}
 
 	private MockMultipartFile validCvFile() {

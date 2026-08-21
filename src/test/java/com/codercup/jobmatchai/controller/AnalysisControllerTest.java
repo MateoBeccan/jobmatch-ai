@@ -35,6 +35,7 @@ import com.codercup.jobmatchai.exception.InvalidAiResponseException;
 import com.codercup.jobmatchai.scoring.MatchScoreCalculator;
 import com.codercup.jobmatchai.scoring.RequirementAssessment;
 import com.codercup.jobmatchai.scoring.RequirementCategory;
+import com.codercup.jobmatchai.scoring.RequirementCriticality;
 import com.codercup.jobmatchai.scoring.RequirementStatus;
 import com.codercup.jobmatchai.service.AnalysisService;
 import com.codercup.jobmatchai.service.AnalysisHistoryService;
@@ -56,6 +57,7 @@ class AnalysisControllerTest {
 	private static boolean simulateGeminiUnavailable;
 	private static boolean simulateImageGeminiUnavailable;
 	private static boolean simulateUnexpectedError;
+	private static boolean simulateCriticalExperienceGap;
 
 	@Autowired
 	private MockMvc mockMvc;
@@ -72,6 +74,7 @@ class AnalysisControllerTest {
 		simulateGeminiUnavailable = false;
 		simulateImageGeminiUnavailable = false;
 		simulateUnexpectedError = false;
+		simulateCriticalExperienceGap = false;
 	}
 
 	@Test
@@ -107,12 +110,53 @@ class AnalysisControllerTest {
 				.andExpect(jsonPath("$.requirements[2].status").value("partial"))
 				.andExpect(jsonPath("$.breakdown.mandatoryTechnical").value(83))
 				.andExpect(jsonPath("$.breakdown.experienceSeniority").doesNotExist())
+				.andExpect(jsonPath("$.criticalMissingRequirements").isArray())
+				.andExpect(jsonPath("$.criticalMissingRequirements.length()").value(0))
+				.andExpect(jsonPath("$.experienceGap").doesNotExist())
+				.andExpect(jsonPath("$.warnings").isArray())
+				.andExpect(jsonPath("$.warnings.length()").value(0))
 				.andExpect(jsonPath("$.jobSearchProfile.role").value("Java Backend Developer"))
 				.andExpect(jsonPath("$.jobSearchProfile.seniority").value("JUNIOR"))
 				.andExpect(jsonPath("$.jobSearchProfile.keywords[0]").value("Java"))
 				.andExpect(jsonPath("$.jobSearchProfile.keywords[1]").value("Spring Boot"))
 				.andExpect(jsonPath("$.jobSearchProfile.keywords[2]").value("SQL"))
 				.andExpect(jsonPath("$.jobSearchProfile.keywords[3]").value("REST API"));
+	}
+
+	@Test
+	void analyzeReturnsExplanationFieldsForCriticalExperienceGap() throws Exception {
+		simulateCriticalExperienceGap = true;
+		MockMultipartFile cvFile = new MockMultipartFile(
+				"cvFile",
+				"cv.pdf",
+				"application/pdf",
+				createPdfWithText("Java developer with Spring Boot experience")
+		);
+		MockMultipartFile jobDescription = new MockMultipartFile(
+				"jobDescription",
+				"",
+				"text/plain",
+				"Senior Java developer role".getBytes()
+		);
+
+		mockMvc.perform(multipart("/api/analyze")
+						.file(cvFile)
+						.file(jobDescription))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.matchPercentage").value(69))
+				.andExpect(jsonPath("$.criticalMissingRequirements.length()").value(1))
+				.andExpect(jsonPath("$.criticalMissingRequirements[0].requirement").value("5+ anos de experiencia profesional"))
+				.andExpect(jsonPath("$.criticalMissingRequirements[0].category").value("experience_seniority"))
+				.andExpect(jsonPath("$.experienceGap.requirement").value("5+ anos de experiencia profesional"))
+				.andExpect(jsonPath("$.experienceGap.status").value("missing"))
+				.andExpect(jsonPath("$.experienceGap.critical").value(true))
+				.andExpect(jsonPath("$.warnings[0]").value("Falta 1 requisito critico de la oferta."))
+				.andExpect(jsonPath("$.warnings[1]").value(
+						"La experiencia profesional requerida no esta completamente respaldada por el CV."
+				))
+				.andExpect(jsonPath("$.warnings[2]").value(
+						"El score esta limitado por requisitos criticos no cumplidos."
+				));
 	}
 
 	@Test
@@ -575,6 +619,27 @@ class AnalysisControllerTest {
 						throw new InvalidAiResponseException("No se pudo interpretar la respuesta del servicio de analisis.");
 					}
 
+					if (simulateCriticalExperienceGap) {
+						return new GeminiAnalysisResult(
+								List.of(
+										assessment("Java", RequirementCategory.MANDATORY_TECHNICAL, RequirementStatus.MATCH),
+										assessment("Spring Boot", RequirementCategory.MANDATORY_TECHNICAL, RequirementStatus.MATCH),
+										assessment(
+												"5+ anos de experiencia profesional",
+												RequirementCategory.EXPERIENCE_SENIORITY,
+												RequirementCriticality.CRITICAL,
+												RequirementStatus.MISSING,
+												"El CV no demuestra 5+ anos de experiencia profesional."
+										)
+								),
+								List.of("Java", "Spring Boot"),
+								List.of(),
+								List.of("Preparar experiencia senior"),
+								List.of("Como validarias experiencia profesional?"),
+								jobSearchProfile()
+						);
+					}
+
 					return new GeminiAnalysisResult(
 							List.of(
 									assessment("Java", RequirementCategory.MANDATORY_TECHNICAL, RequirementStatus.MATCH),
@@ -623,6 +688,16 @@ class AnalysisControllerTest {
 						RequirementStatus status
 				) {
 					return new RequirementAssessment(name, category, status, "Evidencia de test");
+				}
+
+				private RequirementAssessment assessment(
+						String name,
+						RequirementCategory category,
+						RequirementCriticality criticality,
+						RequirementStatus status,
+						String evidence
+				) {
+					return new RequirementAssessment(name, category, criticality, status, evidence);
 				}
 
 				private GeminiJobSearchProfile jobSearchProfile() {
