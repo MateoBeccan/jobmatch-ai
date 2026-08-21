@@ -5,8 +5,15 @@ type RecommendationListProps = {
   recommendations: Recommendation[]
 }
 
+const INITIAL_RECOMMENDATION_COUNT = 3
+
 export function RecommendationList({ recommendations }: RecommendationListProps) {
   const [openIndex, setOpenIndex] = useState<number | null>(null)
+  const [showAllRecommendations, setShowAllRecommendations] = useState(false)
+  const visibleRecommendations = showAllRecommendations
+    ? recommendations
+    : recommendations.slice(0, INITIAL_RECOMMENDATION_COUNT)
+  const hasHiddenRecommendations = recommendations.length > INITIAL_RECOMMENDATION_COUNT
 
   if (recommendations.length === 0) {
     return (
@@ -27,12 +34,12 @@ export function RecommendationList({ recommendations }: RecommendationListProps)
       <div className="panel-title-row">
         <div>
           <span className="panel-eyebrow">Acciones sugeridas</span>
-          <h2>¿Qué deberías mejorar?</h2>
+          <h2>Qué deberías priorizar ahora</h2>
         </div>
         <span className="panel-count">{recommendations.length} recomendaciones</span>
       </div>
       <ol className="recommendation-list">
-        {recommendations.map((recommendation, index) => {
+        {visibleRecommendations.map((recommendation, index) => {
           const expanded = openIndex === index
           return (
             <li key={`${recommendation.problem}-${index}`} className="recommendation-item">
@@ -58,6 +65,16 @@ export function RecommendationList({ recommendations }: RecommendationListProps)
           )
         })}
       </ol>
+      {hasHiddenRecommendations && (
+        <button
+          type="button"
+          className="list-expand-button"
+          aria-expanded={showAllRecommendations}
+          onClick={() => setShowAllRecommendations((current) => !current)}
+        >
+          {showAllRecommendations ? 'Ver menos' : `Ver más recomendaciones (${recommendations.length - INITIAL_RECOMMENDATION_COUNT})`}
+        </button>
+      )}
     </section>
   )
 }

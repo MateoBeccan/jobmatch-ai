@@ -3,8 +3,8 @@
 Plataforma web que analiza la compatibilidad entre un CV y una oferta laboral usando **Google Gemini** y calcula un porcentaje determinista de coincidencia mediante Java. Desarrollada como proyecto academico para **CoderCUP IA 2026** por [Mateo Beccan](https://github.com/MateoBeccan) y [Francisco Lorenzo](https://github.com/francisco Lorenzo).
 
 **Frontend:** React 19 + TypeScript + Vite + Tailwind CSS  
-**Backend:** Spring Boot 4.1 + Java 21 + H2 + Spring Security  
-**Despliegue:** Docker + Vercel (frontend) + Render ( Backend) + GitHub Actions CI  
+**Backend:** Spring Boot 4.1.0 + Java 21 + H2 + Spring Security  
+**Despliegue:** Docker + Vercel (frontend) + Render (Backend) + GitHub Actions CI  
 
 ---
 
@@ -72,7 +72,8 @@ Plataforma web que analiza la compatibilidad entre un CV y una oferta laboral us
 ```
 
 - El frontend es una SPA con enrutamiento custom via History API (sin react-router).
-- El backend expone una REST API publica para analisis y busqueda, con endpoints protegidos para historial cuando `SECURITY_ENABLED=true`.
+- El backend expone una REST API publica para analisis y busqueda, con endpoints `/api/analyses` protegidos cuando `SECURITY_ENABLED=true`.
+- El historial se almacena **exclusivamente en `localStorage` del navegador**; el frontend no persiste datos en el backend.
 - El scoring es **determinista**: Gemini solo clasifica requisitos, Java calcula el porcentaje. La misma entrada siempre produce el mismo score.
 
 ---
@@ -123,6 +124,15 @@ JOBICY_TIMEOUT_MS=5000
 JOBICY_RESULT_LIMIT=100
 JOBICY_CACHE_TTL_MINUTES=60
 JOB_SEARCH_MAX_RESULTS=8
+
+# Limites de procesamiento (opcionales)
+ANALYSIS_MAX_DESCRIPTION_LENGTH=5000
+ANALYSIS_MAX_PDF_PAGES=50
+ANALYSIS_MAX_PDF_TEXT_LENGTH=50000
+ANALYSIS_HISTORY_MAX_PAGE_SIZE=50
+
+# Puerto del servidor (opcional)
+PORT=8080
 ```
 
 ### Frontend
@@ -218,7 +228,7 @@ Disponible en `http://localhost:5173`.
   "jobSearchProfile": {
     "role": "Backend Developer",
     "seniority": "MID",
-    "keywords": ["java", "spring", "rest api"]
+    "keywords": ["java", "spring boot", "rest api"]
   }
 }
 ```
@@ -251,7 +261,7 @@ Disponible en `http://localhost:5173`.
       "snippet": "Buscamos desarrollador Java...",
       "salary": "$3000-5000 USD/mes",
       "employmentType": "Full-time",
-      "updatedAt": "2026-08-10",
+      "pubDate": "2026-08-10",
       "url": "https://jobicy.com/...",
       "source": "Jobicy",
       "matchedKeywords": ["java", "spring boot"]
@@ -313,7 +323,7 @@ Las categorias sin requisitos no participan en el calculo, normalizando al conju
 ## Integracion con Gemini
 
 - **SDK:** `com.google.genai:google-genai:1.63.0`
-- **Modelo por defecto:** `gemini-3.6-flash`
+- **Modelo por defecto:** `gemini-3.6-flash` (configurable via `GEMINI_MODEL`)
 - **Salida estructurada:** Usa `responseSchema` de Gemini para garantizar JSON valido.
 - **Seed fija:** 42 (para reproducibilidad).
 - **Prompt injection defense:** El prompt instruye a Gemini a tratar el CV y la oferta como datos no confiables.
@@ -335,7 +345,7 @@ El prompt esta escrito en espanol (cientos de lineas) e incluye:
 
 ---
 
-## Busqueda de empleos
+### Busqueda de empleos
 
 Integracion con la API de [Jobicy](https://jobicy.com/) para ofertas de empleo remoto.
 
@@ -343,17 +353,17 @@ Integracion con la API de [Jobicy](https://jobicy.com/) para ofertas de empleo r
 
 1. El analisis genera un `JobSearchProfile` (rol, seniority, keywords) a partir del CV.
 2. El usuario selecciona ubicacion: Argentina / Latinoamerica / Global.
-3. Se buscan hasta 100 ofertas de Jobicy (filtradas por industria `engineering`).
+3. Se buscan hasta 100 ofertas de Jobicy (filtradas por industria `engineering`, hardcodeado).
 4. Se filtran y rankean localmente:
    - **Geo gate:** Argentina acepta "Argentina", "LATAM", "Anywhere"; LATAM acepta "LATAM", "Anywhere"; Global no filtra.
    - **Seniority mismatch:** Perfiles TRAINEE/JUNIOR excluyen puestos Senior/Lead/Staff.
    - **Relevance gate:** Al menos 1 keyword en titulo o descripcion. Si matchea solo en descripcion, requiere 2+ keywords y tokens significativos en titulo.
-   - **Ranking:** Primario por keywords matcheadas (desc), secundario por fecha (desc).
-5. Se retornan hasta 8 resultados (configurable).
+   - **Ranking:** Primario por keywords matcheadas (desc), secundario por fecha de publicacion (desc).
+5. Se retornan hasta 8 resultados (configurable via `JOB_SEARCH_MAX_RESULTS`).
 
 ### Cache
 
-Cache en memoria con TTL configurable (default 60 min). Si la API falla, sirve datos stale y extiende el TTL.
+Cache en memoria con TTL configurable (default 60 min, minimo 60 min). Si la API falla, sirve datos stale y extiende el TTL.
 
 ---
 
@@ -418,6 +428,7 @@ Filtro `OncePerRequestFilter` aplicado a POST en `/api/analyze`, `/api/analyses`
 
 | Ruta | Pagina | Descripcion |
 |---|---|---|
+| `/` | `HomePage` | Landing page con demo animado y descripcion de funcionalidades |
 | `/analizar` | `AnalyzerPage` | Pagina principal: upload CV, descripcion, resultados |
 | `/historial` | `HistoryPage` | Lista de analisis anteriores con busqueda/filtros |
 | `/historial/:id` | `HistoryDetail` | Detalle de un analisis |
@@ -426,7 +437,7 @@ Filtro `OncePerRequestFilter` aplicado a POST en `/api/analyze`, `/api/analyses`
 
 **Atoms:** `ScoreRing`, `ThemeToggle`, `BottomNav`, `AppFooter`
 
-**Molecules:** `LoadingScreen`, `AnalysisStepper`, `FileUploadCard`, `InlineFilePreview`, `ErrorState`, `EmptyState`, `AnalysisErrorAlert`, `JobOfferCard`
+**Molecules:** `LoadingScreen`, `AnalysisStepper`, `FileUploadCard`, `InlineFilePreview`, `ErrorState`, `EmptyState`, `AnalysisErrorAlert`, `JobOfferCard`, `AppHeader`, `ConfirmDialog`
 
 **Organisms:** `Results`, `ScoreExplanationPanel`, `RequirementsSection`, `RecommendationList`, `CvOptimizationPanel`, `InterviewQuestionsPanel`, `JobSearchPanel`, `HistoryScreen`, `ComparisonView`
 
@@ -462,7 +473,7 @@ Filtro `OncePerRequestFilter` aplicado a POST en `/api/analyze`, `/api/analyses`
 
 ## Testing
 
-### Backend (19 archivos de test)
+### Backend (22 archivos de test)
 
 ```powershell
 .\mvnw.cmd test
@@ -475,9 +486,9 @@ Filtro `OncePerRequestFilter` aplicado a POST en `/api/analyze`, `/api/analyses`
 | Scoring | 11 | `MatchScoreCalculatorTest` |
 | Security | 16 | `SecurityConfigTest`, `SecurityDisabledConfigTest`, `RateLimitFilterTest`, `RateLimitFilterIntegrationTest` |
 | Error handling | 14 | `ApiExceptionHandlerTest` |
-| Integration | ~20 | `CorsConfigTest`, `JobicyClientTest`, `DeploymentConfigurationTest`, `ActuatorHealthEndpointTest` |
+| Integration | ~20 | `CorsConfigTest`, `CorsConfigCustomOriginTest`, `JobicyClientTest`, `JoobleClientTest`, `DeploymentConfigurationTest`, `DeploymentSupabaseConfigurationTest`, `ActuatorHealthEndpointTest`, `JobmatchAiApplicationTests` |
 
-### Frontend (10 archivos de test)
+### Frontend (15 archivos de test)
 
 ```powershell
 npm test --prefix frontend
@@ -495,6 +506,11 @@ npm test --prefix frontend
 | `AnalysisErrorAlert.test.tsx` | ~2 | Alerta de error |
 | `InlineFilePreview.test.tsx` | ~5 | Preview de PDF/imagen |
 | `JobOfferCard.test.tsx` | ~6 | Tarjeta de oferta laboral |
+| `AppFooter.test.tsx` | ~3 | Footer de la aplicacion |
+| `FileUploadCard.test.tsx` | ~4 | Componente de carga de archivos |
+| `LoadingScreen.test.tsx` | ~4 | Pantalla de carga animada |
+| `HomePage.test.tsx` | ~3 | Landing page |
+| `routes.test.ts` | ~4 | Enrutamiento custom |
 
 ### Validacion completa
 
@@ -550,7 +566,7 @@ SPA rewrite configurado en `vercel.json`.
 
 - H2 es adecuado para desarrollo y demos. No se recomienda para multiples instancias.
 - La autenticacion Basic esta disponible para produccion (`SECURITY_ENABLED=true`).
-- El historial depende del archivo H2 local (`data/jobmatch`).
+- El historial se almacena en `localStorage` del navegador; el backend H2 no es utilizado por el frontend actual.
 
 ### Variables de entorno para produccion
 
@@ -570,17 +586,21 @@ PORT=8080
 ```
 jobmatch-ai/
 ├── .github/workflows/ci.yml    # CI/CD pipeline
+├── AGENTS.md                    # Instrucciones para agentes de IA
 ├── frontend/                    # React SPA
 │   ├── src/
 │   │   ├── components/
 │   │   │   ├── atoms/          # ScoreRing, ThemeToggle, BottomNav, AppFooter
-│   │   │   ├── molecules/      # LoadingScreen, FileUploadCard, ErrorState, ...
+│   │   │   ├── molecules/      # LoadingScreen, FileUploadCard, AppHeader, ConfirmDialog, ...
 │   │   │   ├── organisms/      # Results, RequirementsSection, JobSearchPanel, ...
 │   │   │   └── templates/      # AnalyzerPage, AppErrorBoundary
-│   │   ├── pages/              # HistoryPage (lista + detalle + comparacion)
+│   │   ├── pages/              # HomePage, HistoryPage, App.tsx
 │   │   ├── services/           # api.ts, errorMessages.ts
 │   │   ├── lib/
+│   │   │   ├── constants/      # app.ts, brand.ts
+│   │   │   ├── helpers/        # analysis.ts, format.ts
 │   │   │   ├── hooks/          # useTheme, useObjectUrl, useHistory
+│   │   │   ├── mocks/          # analysisMock.ts (modo demo)
 │   │   │   ├── storage/        # historyStorage.ts (localStorage)
 │   │   │   └── types/          # types.ts
 │   │   ├── routes/             # Enrutamiento custom via History API
@@ -588,16 +608,17 @@ jobmatch-ai/
 │   ├── package.json
 │   └── vite.config.ts
 ├── src/main/java/com/codercup/jobmatchai/
+│   ├── client/                 # JobicyClient
 │   ├── controller/             # AnalysisController, JobSearchController
-│   ├── service/                # AnalysisService, GeminiService, JobSearchService, ...
-│   ├── model/
-│   │   ├── entity/             # AnalysisEntity
-│   │   └── dto/                # Request/Response DTOs
-│   ├── config/                 # CorsConfig, GeminiConfig
+│   ├── dto/                    # Request/Response DTOs + internal/
+│   ├── entity/                 # AnalysisEntity
+│   ├── exception/              # Exception hierarchy + ApiExceptionHandler
+│   ├── repository/             # AnalysisRepository
+│   ├── scoring/                # MatchScoreCalculator, RequirementCategory, RequirementStatus
 │   ├── security/               # SecurityConfig, RateLimitFilter, CurrentUserService
-│   └── exception/              # Exception hierarchy + ApiExceptionHandler
-├── src/test/java/              # 19 archivos de test
-├── pom.xml                     # Spring Boot 4.1, Java 21, H2, Gemini SDK
+│   └── service/                # AnalysisService, GeminiService, JobSearchService, PdfService, ...
+├── src/test/java/              # 22 archivos de test
+├── pom.xml                     # Spring Boot 4.1.0, Java 21, H2, Gemini SDK
 ├── Dockerfile                  # Multi-stage build
 ├── .env.example                # Template de configuracion
 └── data/                       # H2 database files (gitignored)

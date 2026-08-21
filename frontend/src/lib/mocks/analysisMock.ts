@@ -8,6 +8,9 @@ export const mockAnalysisResponse: AnalysisResponse = {
   matchPercentage: 82,
   matchingSkills: ['JavaScript', 'React', 'TypeScript', 'Git'],
   missingSkills: ['Docker', 'AWS'],
+  criticalMissingRequirements: [],
+  experienceGap: null,
+  warnings: [],
   recommendations: [
     'Destacar la experiencia con React en el primer puesto de experiencia laboral.',
     'Mencionar Docker si tenés experiencia real con contenedores.',

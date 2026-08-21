@@ -19,6 +19,19 @@ export type ScoreBreakdown = {
   complementary?: number
 }
 
+export type CriticalRequirementGap = {
+  requirement: string
+  category: string
+  evidence: string
+}
+
+export type ExperienceGap = {
+  requirement: string
+  status: RequirementStatus
+  critical: boolean
+  summary: string
+}
+
 export type JobSeniority =
   | 'TRAINEE'
   | 'JUNIOR'
@@ -96,6 +109,9 @@ export type AnalysisResponse = {
   matchPercentage: number
   matchingSkills: string[]
   missingSkills: string[]
+  criticalMissingRequirements?: CriticalRequirementGap[]
+  experienceGap?: ExperienceGap | null
+  warnings?: string[]
   recommendations: string[]
   interviewQuestions: string[]
   requirements?: RequirementMatch[]

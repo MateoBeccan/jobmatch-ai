@@ -10,6 +10,8 @@ import type {
   JobSearchProfile,
   JobSearchResponse,
   JobSeniority,
+  CriticalRequirementGap,
+  ExperienceGap,
   RequirementCategory,
   RequirementMatch,
   RequirementStatus,
@@ -88,6 +90,48 @@ function normalizeBreakdown(value: unknown): ScoreBreakdown | undefined {
   }, {} as ScoreBreakdown)
 }
 
+function normalizeCriticalMissingRequirements(value: unknown): CriticalRequirementGap[] {
+  if (value === undefined || value === null) return []
+  if (!Array.isArray(value)) throw new Error('El analisis devolvio requisitos criticos con un formato invalido.')
+
+  const valid = value.every((item) => {
+    if (!item || typeof item !== 'object') return false
+    const record = item as Record<string, unknown>
+    return typeof record.requirement === 'string'
+      && typeof record.category === 'string'
+      && typeof record.evidence === 'string'
+  })
+  if (!valid) throw new Error('El analisis devolvio requisitos criticos con un formato invalido.')
+
+  return (value as CriticalRequirementGap[]).map(({ requirement, category, evidence }) => ({
+    requirement,
+    category,
+    evidence,
+  }))
+}
+
+function normalizeExperienceGap(value: unknown): ExperienceGap | null {
+  if (value === undefined || value === null) return null
+  if (typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error('El analisis devolvio una brecha de experiencia con un formato invalido.')
+  }
+
+  const record = value as Record<string, unknown>
+  if (typeof record.requirement !== 'string'
+    || !isRequirementStatus(record.status)
+    || typeof record.critical !== 'boolean'
+    || typeof record.summary !== 'string') {
+    throw new Error('El analisis devolvio una brecha de experiencia con un formato invalido.')
+  }
+
+  return {
+    requirement: record.requirement,
+    status: record.status,
+    critical: record.critical,
+    summary: record.summary,
+  }
+}
+
 function normalizeJobSearchProfile(value: unknown, required = false): JobSearchProfile | undefined {
   if (value === undefined || value === null) {
     if (required) throw new Error('El analisis devolvio un perfil de busqueda laboral invalido.')
@@ -130,6 +174,7 @@ function normalizeAnalysisResponse(response: AnalysisResponse, requireJobSearchP
   if (!response || typeof response.matchPercentage !== 'number' || response.matchPercentage < 0 || response.matchPercentage > 100
     || !isStringArray(response.matchingSkills)
     || !isStringArray(response.missingSkills)
+    || !(response.warnings === undefined || response.warnings === null || isStringArray(response.warnings))
     || !isStringArray(response.recommendations)
     || !isStringArray(response.interviewQuestions)) {
     throw new Error('El análisis devolvió un formato inválido.')
@@ -137,6 +182,9 @@ function normalizeAnalysisResponse(response: AnalysisResponse, requireJobSearchP
 
   return withDerivedRequirements({
     ...response,
+    criticalMissingRequirements: normalizeCriticalMissingRequirements(response.criticalMissingRequirements),
+    experienceGap: normalizeExperienceGap(response.experienceGap),
+    warnings: response.warnings === undefined || response.warnings === null ? [] : response.warnings,
     requirements: normalizeRequirements(response.requirements),
     breakdown: normalizeBreakdown(response.breakdown),
     jobSearchProfile: normalizeJobSearchProfile(response.jobSearchProfile, requireJobSearchProfile),

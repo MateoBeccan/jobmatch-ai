@@ -63,6 +63,142 @@ class MatchScoreCalculatorTest {
 	}
 
 	@Test
+	void normalCriticalityPreservesPreviousScore() {
+		MatchScoreResult result = calculator.calculate(List.of(
+				assessment("Java", RequirementCategory.MANDATORY_TECHNICAL, RequirementCriticality.NORMAL, RequirementStatus.MATCH),
+				assessment("Spring Boot", RequirementCategory.MANDATORY_TECHNICAL, RequirementCriticality.NORMAL, RequirementStatus.MATCH),
+				assessment("SQL", RequirementCategory.MANDATORY_TECHNICAL, RequirementCriticality.NORMAL, RequirementStatus.MATCH),
+				assessment("Kubernetes", RequirementCategory.MANDATORY_TECHNICAL, RequirementCriticality.NORMAL, RequirementStatus.MISSING),
+				assessment("Seniority", RequirementCategory.EXPERIENCE_SENIORITY, RequirementCriticality.NORMAL, RequirementStatus.PARTIAL)
+		));
+
+		assertThat(result.matchPercentage()).isEqualTo(69);
+		assertThat(result.breakdown()).isEqualTo(new ScoreBreakdown(75, 50, null, null));
+	}
+
+	@Test
+	void criticalMatchDoesNotApplyCap() {
+		MatchScoreResult result = calculator.calculate(List.of(
+				assessment("Java", RequirementCategory.MANDATORY_TECHNICAL, RequirementCriticality.CRITICAL, RequirementStatus.MATCH),
+				assessment("Spring Boot", RequirementCategory.MANDATORY_TECHNICAL, RequirementCriticality.NORMAL, RequirementStatus.MATCH),
+				assessment("Docker", RequirementCategory.DESIRABLE, RequirementCriticality.NORMAL, RequirementStatus.MISSING)
+		));
+
+		assertThat(result.matchPercentage()).isEqualTo(86);
+		assertThat(result.breakdown()).isEqualTo(new ScoreBreakdown(100, null, 0, null));
+	}
+
+	@Test
+	void criticalPartialCapsHighScoreAtEightyFive() {
+		MatchScoreResult result = calculator.calculate(List.of(
+				assessment("Java", RequirementCategory.MANDATORY_TECHNICAL, RequirementCriticality.NORMAL, RequirementStatus.MATCH),
+				assessment("Spring Boot", RequirementCategory.MANDATORY_TECHNICAL, RequirementCriticality.NORMAL, RequirementStatus.MATCH),
+				assessment("SQL", RequirementCategory.MANDATORY_TECHNICAL, RequirementCriticality.NORMAL, RequirementStatus.MATCH),
+				assessment("2 of 3 years professional experience", RequirementCategory.EXPERIENCE_SENIORITY, RequirementCriticality.CRITICAL, RequirementStatus.PARTIAL),
+				assessment("Docker", RequirementCategory.DESIRABLE, RequirementCriticality.NORMAL, RequirementStatus.MATCH),
+				assessment("Git", RequirementCategory.COMPLEMENTARY, RequirementCriticality.NORMAL, RequirementStatus.MATCH)
+		));
+
+		assertThat(result.matchPercentage()).isEqualTo(85);
+		assertThat(result.basePercentage()).isEqualTo(90);
+		assertThat(result.criticalCapApplied()).isTrue();
+		assertThat(result.criticalMissingCount()).isZero();
+		assertThat(result.criticalPartialCount()).isEqualTo(1);
+		assertThat(result.breakdown()).isEqualTo(new ScoreBreakdown(100, 50, 100, 100));
+	}
+
+	@Test
+	void singleCriticalMissingCapsHighScoreAtSixtyNine() {
+		MatchScoreResult result = calculator.calculate(List.of(
+				assessment("Java", RequirementCategory.MANDATORY_TECHNICAL, RequirementCriticality.NORMAL, RequirementStatus.MATCH),
+				assessment("Spring Boot", RequirementCategory.MANDATORY_TECHNICAL, RequirementCriticality.NORMAL, RequirementStatus.MATCH),
+				assessment("SQL", RequirementCategory.MANDATORY_TECHNICAL, RequirementCriticality.NORMAL, RequirementStatus.MATCH),
+				assessment("5+ years professional experience", RequirementCategory.EXPERIENCE_SENIORITY, RequirementCriticality.CRITICAL, RequirementStatus.MISSING),
+				assessment("Docker", RequirementCategory.DESIRABLE, RequirementCriticality.NORMAL, RequirementStatus.MATCH),
+				assessment("Git", RequirementCategory.COMPLEMENTARY, RequirementCriticality.NORMAL, RequirementStatus.MATCH)
+		));
+
+		assertThat(result.matchPercentage()).isEqualTo(69);
+		assertThat(result.basePercentage()).isEqualTo(80);
+		assertThat(result.criticalCapApplied()).isTrue();
+		assertThat(result.criticalMissingCount()).isEqualTo(1);
+		assertThat(result.criticalPartialCount()).isZero();
+		assertThat(result.breakdown()).isEqualTo(new ScoreBreakdown(100, 0, 100, 100));
+	}
+
+	@Test
+	void multipleCriticalMissingCapsHighScoreAtFiftyFour() {
+		MatchScoreResult result = calculator.calculate(List.of(
+				assessment("Java", RequirementCategory.MANDATORY_TECHNICAL, RequirementCriticality.NORMAL, RequirementStatus.MATCH),
+				assessment("Spring Boot", RequirementCategory.MANDATORY_TECHNICAL, RequirementCriticality.NORMAL, RequirementStatus.MATCH),
+				assessment("5+ years professional experience", RequirementCategory.EXPERIENCE_SENIORITY, RequirementCriticality.CRITICAL, RequirementStatus.MISSING),
+				assessment("Fluent English required", RequirementCategory.COMPLEMENTARY, RequirementCriticality.CRITICAL, RequirementStatus.MISSING),
+				assessment("Docker", RequirementCategory.DESIRABLE, RequirementCriticality.NORMAL, RequirementStatus.MATCH)
+		));
+
+		assertThat(result.matchPercentage()).isEqualTo(54);
+		assertThat(result.basePercentage()).isEqualTo(70);
+		assertThat(result.criticalCapApplied()).isTrue();
+		assertThat(result.criticalMissingCount()).isEqualTo(2);
+		assertThat(result.breakdown()).isEqualTo(new ScoreBreakdown(100, 0, 100, 0));
+	}
+
+	@Test
+	void missingDesirableNormalDoesNotApplyCriticalCap() {
+		MatchScoreResult result = calculator.calculate(List.of(
+				assessment("Java", RequirementCategory.MANDATORY_TECHNICAL, RequirementCriticality.NORMAL, RequirementStatus.MATCH),
+				assessment("Spring Boot", RequirementCategory.MANDATORY_TECHNICAL, RequirementCriticality.NORMAL, RequirementStatus.MATCH),
+				assessment("Docker preferred", RequirementCategory.DESIRABLE, RequirementCriticality.NORMAL, RequirementStatus.MISSING)
+		));
+
+		assertThat(result.matchPercentage()).isEqualTo(86);
+		assertThat(result.breakdown()).isEqualTo(new ScoreBreakdown(100, null, 0, null));
+	}
+
+	@Test
+	void seniorExperienceMissingWithCompleteTechnologiesDoesNotEndAsHighMatch() {
+		MatchScoreResult result = calculator.calculate(List.of(
+				assessment("Java", RequirementCategory.MANDATORY_TECHNICAL, RequirementCriticality.NORMAL, RequirementStatus.MATCH),
+				assessment("Spring Boot", RequirementCategory.MANDATORY_TECHNICAL, RequirementCriticality.NORMAL, RequirementStatus.MATCH),
+				assessment("SQL", RequirementCategory.MANDATORY_TECHNICAL, RequirementCriticality.NORMAL, RequirementStatus.MATCH),
+				assessment("Docker", RequirementCategory.MANDATORY_TECHNICAL, RequirementCriticality.NORMAL, RequirementStatus.MATCH),
+				assessment("5+ years professional experience", RequirementCategory.EXPERIENCE_SENIORITY, RequirementCriticality.CRITICAL, RequirementStatus.MISSING)
+		));
+
+		assertThat(result.matchPercentage()).isEqualTo(69);
+		assertThat(result.breakdown()).isEqualTo(new ScoreBreakdown(100, 0, null, null));
+	}
+
+	@Test
+	void juniorProfileWithoutCriticalMissingKeepsNormalScore() {
+		MatchScoreResult result = calculator.calculate(List.of(
+				assessment("Java", RequirementCategory.MANDATORY_TECHNICAL, RequirementCriticality.NORMAL, RequirementStatus.MATCH),
+				assessment("Spring Boot", RequirementCategory.MANDATORY_TECHNICAL, RequirementCriticality.NORMAL, RequirementStatus.MATCH),
+				assessment("SQL", RequirementCategory.MANDATORY_TECHNICAL, RequirementCriticality.NORMAL, RequirementStatus.PARTIAL),
+				assessment("Junior level", RequirementCategory.EXPERIENCE_SENIORITY, RequirementCriticality.NORMAL, RequirementStatus.MATCH)
+		));
+
+		assertThat(result.matchPercentage()).isEqualTo(88);
+		assertThat(result.breakdown()).isEqualTo(new ScoreBreakdown(83, 100, null, null));
+	}
+
+	@Test
+	void criticalMissingDoesNotRaiseAlreadyLowBaseScore() {
+		MatchScoreResult result = calculator.calculate(List.of(
+				assessment("Java", RequirementCategory.MANDATORY_TECHNICAL, RequirementCriticality.NORMAL, RequirementStatus.MISSING),
+				assessment("Spring Boot", RequirementCategory.MANDATORY_TECHNICAL, RequirementCriticality.NORMAL, RequirementStatus.MISSING),
+				assessment("5+ years professional experience", RequirementCategory.EXPERIENCE_SENIORITY, RequirementCriticality.CRITICAL, RequirementStatus.MISSING),
+				assessment("Docker", RequirementCategory.DESIRABLE, RequirementCriticality.NORMAL, RequirementStatus.MATCH)
+		));
+
+		assertThat(result.matchPercentage()).isEqualTo(11);
+		assertThat(result.basePercentage()).isEqualTo(11);
+		assertThat(result.criticalCapApplied()).isFalse();
+		assertThat(result.criticalMissingCount()).isEqualTo(1);
+		assertThat(result.breakdown()).isEqualTo(new ScoreBreakdown(0, 0, 100, null));
+	}
+
+	@Test
 	void normalizesOnlyPresentCategories() {
 		MatchScoreResult result = calculator.calculate(List.of(
 				assessment("Java", RequirementCategory.MANDATORY_TECHNICAL, RequirementStatus.MATCH),
@@ -156,6 +292,15 @@ class MatchScoreCalculatorTest {
 				"Java",
 				RequirementCategory.MANDATORY_TECHNICAL,
 				null,
+				RequirementStatus.MATCH,
+				null
+		))
+				.isInstanceOf(NullPointerException.class)
+				.hasMessage("criticality must not be null");
+		assertThatThrownBy(() -> new RequirementAssessment(
+				"Java",
+				RequirementCategory.MANDATORY_TECHNICAL,
+				null,
 				null
 		))
 				.isInstanceOf(NullPointerException.class)
@@ -195,5 +340,14 @@ class MatchScoreCalculatorTest {
 			RequirementStatus status
 	) {
 		return new RequirementAssessment(name, category, status, null);
+	}
+
+	private RequirementAssessment assessment(
+			String name,
+			RequirementCategory category,
+			RequirementCriticality criticality,
+			RequirementStatus status
+	) {
+		return new RequirementAssessment(name, category, criticality, status, null);
 	}
 }
