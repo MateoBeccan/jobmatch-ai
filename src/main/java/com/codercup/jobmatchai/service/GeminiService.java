@@ -770,14 +770,14 @@ public class GeminiService {
 
 		try {
 			List<RequirementAssessment> requirements = validateRequirements(response.requirements());
-			List<String> matchingSkills = normalizeRequiredTextList(
+			List<String> matchingSkills = normalizeRequiredSkillList(
 					response.matchingSkills(),
 					"matchingSkills",
 					0,
 					MAX_SKILLS,
 					MAX_SKILL_LENGTH
 			);
-			List<String> missingSkills = normalizeRequiredTextList(
+			List<String> missingSkills = normalizeRequiredSkillList(
 					response.missingSkills(),
 					"missingSkills",
 					0,
@@ -877,6 +877,21 @@ public class GeminiService {
 		return List.copyOf(normalized);
 	}
 
+	private List<String> normalizeRequiredSkillList(
+			List<String> values,
+			String fieldName,
+			int minItems,
+			int maxItems,
+			int maxItemLength
+	) {
+		List<String> normalizedText = normalizeRequiredTextList(values, fieldName, minItems, maxItems, maxItemLength);
+		List<String> normalizedSkills = SkillNormalizer.normalizeSkillList(normalizedText);
+		if (normalizedSkills.size() < minItems) {
+			throw invalidResponse(fieldName + " has too few unique items");
+		}
+		return normalizedSkills;
+	}
+
 	private String normalizeRequiredText(String value, String fieldName, int maxLength) {
 		if (value == null) {
 			throw invalidResponse(fieldName + " contains null");
@@ -892,9 +907,9 @@ public class GeminiService {
 	}
 
 	private void validateNoOverlap(List<String> matchingSkills, List<String> missingSkills) {
-		Set<String> missingSkillKeys = normalizedKeys(missingSkills);
+		Set<String> missingSkillKeys = normalizedSkillKeys(missingSkills);
 		for (String matchingSkill : matchingSkills) {
-			if (missingSkillKeys.contains(normalizedKey(matchingSkill))) {
+			if (missingSkillKeys.contains(SkillNormalizer.comparisonKey(matchingSkill))) {
 				throw invalidResponse("overlap between matchingSkills and missingSkills");
 			}
 		}
@@ -905,10 +920,13 @@ public class GeminiService {
 			List<String> matchingSkills,
 			List<String> missingSkills
 	) {
-		Set<String> matchingSkillKeys = normalizedKeys(matchingSkills);
-		Set<String> missingSkillKeys = normalizedKeys(missingSkills);
+		Set<String> matchingSkillKeys = normalizedSkillKeys(matchingSkills);
+		Set<String> missingSkillKeys = normalizedSkillKeys(missingSkills);
 		for (RequirementAssessment requirement : requirements) {
-			String requirementKey = normalizedKey(requirement.name());
+			if (!SkillNormalizer.isCanonicalSkill(requirement.name())) {
+				continue;
+			}
+			String requirementKey = SkillNormalizer.comparisonKey(requirement.name());
 			if (requirement.status() == RequirementStatus.MATCH && missingSkillKeys.contains(requirementKey)) {
 				throw invalidResponse("requirement MATCH appears in missingSkills");
 			}
@@ -918,10 +936,10 @@ public class GeminiService {
 		}
 	}
 
-	private Set<String> normalizedKeys(List<String> values) {
+	private Set<String> normalizedSkillKeys(List<String> values) {
 		Set<String> keys = new HashSet<>();
 		for (String value : values) {
-			keys.add(normalizedKey(value));
+			keys.add(SkillNormalizer.comparisonKey(value));
 		}
 		return keys;
 	}

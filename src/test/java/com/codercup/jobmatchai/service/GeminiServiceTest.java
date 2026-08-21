@@ -269,6 +269,96 @@ class GeminiServiceTest {
 	}
 
 	@Test
+	void parseResponseDeduplicatesMatchingSkillsBySafeAliases() throws Exception {
+		GeminiService geminiService = new GeminiService("test-key", "test-model", 30000, 2, 500);
+
+		GeminiAnalysisResult result = parseResponse(geminiService, validResponseJson(
+				"[\"Postgres\", \"PostgreSQL\", \"NodeJS\", \"Node.js\"]",
+				"[]",
+				"[\"Destacar bases de datos\", \"Preparar arquitectura\"]",
+				"[\"Pregunta 1\", \"Pregunta 2\", \"Pregunta 3\"]"
+		));
+
+		assertThat(result.matchingSkills()).containsExactly("PostgreSQL", "Node.js");
+	}
+
+	@Test
+	void parseResponseCanonicalizesMissingSkillsBySafeAliases() throws Exception {
+		GeminiService geminiService = new GeminiService("test-key", "test-model", 30000, 2, 500);
+
+		GeminiAnalysisResult result = parseResponse(geminiService, validResponseJson(
+				"[\"Java\"]",
+				"[\"NodeJS\"]",
+				"[\"Practicar Node\", \"Preparar entrevistas\"]",
+				"[\"Pregunta 1\", \"Pregunta 2\", \"Pregunta 3\"]"
+		));
+
+		assertThat(result.missingSkills()).containsExactly("Node.js");
+	}
+
+	@Test
+	void parseResponseRejectsOverlapDetectedThroughSafeAliases() {
+		GeminiService geminiService = new GeminiService("test-key", "test-model", 30000, 2, 500);
+
+		assertThatThrownBy(() -> parseResponse(geminiService, validResponseJson(
+				"[\"Postgres\"]",
+				"[\"PostgreSQL\"]",
+				"[\"Destacar Java\", \"Practicar entrevistas\"]",
+				"[\"Pregunta 1\", \"Pregunta 2\", \"Pregunta 3\"]"
+		)))
+				.isInstanceOf(InvalidAiResponseException.class)
+				.hasMessage("No se pudo interpretar la respuesta del servicio de analisis.");
+	}
+
+	@Test
+	void parseResponseDoesNotTreatSpringAsSpringBootOverlap() throws Exception {
+		GeminiService geminiService = new GeminiService("test-key", "test-model", 30000, 2, 500);
+
+		GeminiAnalysisResult result = parseResponse(geminiService, validResponseJson(
+				"[\"Spring\"]",
+				"[\"Spring Boot\"]",
+				"[\"Destacar Spring\", \"Practicar Spring Boot\"]",
+				"[\"Pregunta 1\", \"Pregunta 2\", \"Pregunta 3\"]"
+		));
+
+		assertThat(result.matchingSkills()).containsExactly("Spring");
+		assertThat(result.missingSkills()).containsExactly("Spring Boot");
+	}
+
+	@Test
+	void parseResponseDoesNotTreatGithubAsGitOverlap() throws Exception {
+		GeminiService geminiService = new GeminiService("test-key", "test-model", 30000, 2, 500);
+
+		GeminiAnalysisResult result = parseResponse(geminiService, validResponseJson(
+				"[\"GitHub\"]",
+				"[\"Git\"]",
+				"[\"Destacar colaboracion\", \"Practicar Git\"]",
+				"[\"Pregunta 1\", \"Pregunta 2\", \"Pregunta 3\"]"
+		));
+
+		assertThat(result.matchingSkills()).containsExactly("GitHub");
+		assertThat(result.missingSkills()).containsExactly("Git");
+	}
+
+	@Test
+	void parseResponseDoesNotCompareComplexRequirementWithSkillAlias() throws Exception {
+		GeminiService geminiService = new GeminiService("test-key", "test-model", 30000, 2, 500);
+
+		GeminiAnalysisResult result = parseResponse(geminiService, responseWithRequirementAndLists(
+				"3+ years PostgreSQL experience",
+				"EXPERIENCE_SENIORITY",
+				"CRITICAL",
+				"MISSING",
+				"El CV demuestra PostgreSQL, pero no 3 anos de experiencia profesional.",
+				"[\"Postgres\"]",
+				"[\"3+ years PostgreSQL experience\"]"
+		));
+
+		assertThat(result.matchingSkills()).containsExactly("PostgreSQL");
+		assertThat(result.requirements().get(0).status()).isEqualTo(RequirementStatus.MISSING);
+	}
+
+	@Test
 	void parseResponseRejectsNullRequiredTextLists() {
 		GeminiService geminiService = new GeminiService("test-key", "test-model", 30000, 2, 500);
 
