@@ -51,6 +51,44 @@ class SecurityConfigTest {
 	}
 
 	@Test
+	void careerMarketPostIsPublicWithoutAuthentication() throws Exception {
+		mockMvc.perform(post("/api/career/market")
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("{}"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.code").value("INVALID_CAREER_MARKET_REQUEST"));
+	}
+
+	@Test
+	void careerMarketGetIsNotExposedWithoutAuthentication() throws Exception {
+		mockMvc.perform(get("/api/career/market"))
+				.andExpect(status().isUnauthorized());
+	}
+
+	@Test
+	void careerMultiversePostIsPublicWithoutAuthentication() throws Exception {
+		mockMvc.perform(post("/api/career/multiverse")
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("{}"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.code").value("INVALID_CAREER_MULTIVERSE_REQUEST"));
+	}
+
+	@Test
+	void careerMultiverseGetIsNotExposedWithoutAuthentication() throws Exception {
+		mockMvc.perform(get("/api/career/multiverse"))
+				.andExpect(status().isUnauthorized());
+	}
+
+	@Test
+	void otherCareerEndpointsAreNotExposedByWildcard() throws Exception {
+		mockMvc.perform(post("/api/career/other")
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("{}"))
+				.andExpect(status().isUnauthorized());
+	}
+
+	@Test
 	void actuatorHealthIsPublicWithoutAuthentication() throws Exception {
 		mockMvc.perform(get("/actuator/health"))
 				.andExpect(status().isOk())

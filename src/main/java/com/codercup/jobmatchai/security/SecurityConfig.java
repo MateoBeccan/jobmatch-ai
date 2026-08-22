@@ -47,6 +47,8 @@ public class SecurityConfig {
 			authorize.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll();
 			authorize.requestMatchers(HttpMethod.POST, "/api/analyze").permitAll();
 			authorize.requestMatchers(HttpMethod.POST, "/api/jobs/search").permitAll();
+			authorize.requestMatchers(HttpMethod.POST, "/api/career/market").permitAll();
+			authorize.requestMatchers(HttpMethod.POST, "/api/career/multiverse").permitAll();
 			if (securityEnabled) {
 				authorize.requestMatchers("/api/analyses", "/api/analyses/**").hasRole("USER");
 			} else {

@@ -135,6 +135,46 @@ describe('Results', () => {
     expect(actionsIndex).toBeGreaterThan(jobSearchIndex)
   })
 
+  it('shows Career Multiverse CTA when a valid jobSearchProfile exists', () => {
+    const markup = render(analysisResponse(), { withCareer: true })
+
+    expect(markup).toContain('Career Multiverse')
+    expect(markup).toContain('Tu perfil puede llevarte por distintos caminos.')
+    expect(markup).toContain('Explorar mi futuro')
+    expect(markup).toContain('Donde queres explorar oportunidades?')
+  })
+
+  it('uses LATAM as the default Career Multiverse region', () => {
+    const markup = render(analysisResponse(), { withCareer: true })
+
+    expect(markup).toContain('aria-pressed="true"')
+    expect(markup).toContain('>LATAM</button>')
+  })
+
+  it('does not show Career Multiverse CTA without a sufficient profile', () => {
+    const response = analysisResponse()
+    delete response.jobSearchProfile
+
+    const markup = render(response, { withCareer: true })
+
+    expect(markup).not.toContain('Tu perfil puede llevarte por distintos caminos.')
+    expect(markup).not.toContain('Explorar mi futuro')
+  })
+
+  it('does not treat missingSkills as current Career Multiverse skills', () => {
+    const markup = render(analysisResponse({
+      missingSkills: ['Docker', 'Kubernetes'],
+      jobSearchProfile: {
+        role: 'Java Backend Developer',
+        seniority: 'JUNIOR',
+        keywords: ['Java', 'Spring Boot', 'SQL'],
+      },
+    }), { withCareer: true })
+
+    expect(markup).toContain('Explorar mi futuro')
+    expect(markup).not.toContain('Kubernetes')
+  })
+
   it('keeps historical analysis responses without the new fields working', () => {
     const response: AnalysisResponse = {
       matchPercentage: 82,
@@ -167,9 +207,9 @@ describe('Results', () => {
   })
 })
 
-function render(result: AnalysisResponse) {
+function render(result: AnalysisResponse, options: { withCareer?: boolean } = {}) {
   return renderToStaticMarkup(
-    <Results result={result} onReset={vi.fn()} onNavigate={vi.fn()} />,
+    <Results result={result} onReset={vi.fn()} onNavigate={vi.fn()} onExploreCareer={options.withCareer ? vi.fn() : undefined} />,
   )
 }
 

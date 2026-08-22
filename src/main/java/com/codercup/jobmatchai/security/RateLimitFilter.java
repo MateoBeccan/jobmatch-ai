@@ -20,13 +20,26 @@ import org.springframework.web.filter.OncePerRequestFilter;
 public class RateLimitFilter extends OncePerRequestFilter {
 
 	private final int requestsPerMinute;
+	private final int careerRequestsPerMinute;
 	private final Map<String, RequestWindow> windows = new ConcurrentHashMap<>();
 
-	public RateLimitFilter(@Value("${rate-limit.per-minute:10}") int requestsPerMinute) {
+	public RateLimitFilter(int requestsPerMinute) {
+		this(requestsPerMinute, requestsPerMinute);
+	}
+
+	@org.springframework.beans.factory.annotation.Autowired
+	public RateLimitFilter(
+			@Value("${rate-limit.per-minute:10}") int requestsPerMinute,
+			@Value("${rate-limit.career-per-minute:3}") int careerRequestsPerMinute
+	) {
 		if (requestsPerMinute < 1) {
 			throw new IllegalArgumentException("El limite por minuto debe ser mayor a 0.");
 		}
+		if (careerRequestsPerMinute < 1) {
+			throw new IllegalArgumentException("El limite career por minuto debe ser mayor a 0.");
+		}
 		this.requestsPerMinute = requestsPerMinute;
+		this.careerRequestsPerMinute = careerRequestsPerMinute;
 	}
 
 	@Override
@@ -34,7 +47,9 @@ public class RateLimitFilter extends OncePerRequestFilter {
 		return !"POST".equalsIgnoreCase(request.getMethod())
 				|| !("/api/analyze".equals(request.getRequestURI())
 						|| "/api/analyses".equals(request.getRequestURI())
-						|| "/api/jobs/search".equals(request.getRequestURI()));
+						|| "/api/jobs/search".equals(request.getRequestURI())
+						|| "/api/career/market".equals(request.getRequestURI())
+						|| "/api/career/multiverse".equals(request.getRequestURI()));
 	}
 
 	@Override
@@ -49,7 +64,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
 			return current.increment();
 		});
 
-		if (window.count() > requestsPerMinute) {
+		if (window.count() > requestsPerMinute(request)) {
 			response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
 			response.setHeader("Retry-After", "60");
 			response.setContentType("application/json");
@@ -79,13 +94,29 @@ public class RateLimitFilter extends OncePerRequestFilter {
 	}
 
 	private String rateLimitKey(HttpServletRequest request) {
-		String prefix = "/api/jobs/search".equals(request.getRequestURI()) ? "jobs:" : "analysis:";
+		String prefix = switch (request.getRequestURI()) {
+			case "/api/jobs/search" -> "jobs:";
+			case "/api/career/market", "/api/career/multiverse" -> "career:";
+			default -> "analysis:";
+		};
 		return prefix + currentUserId(request);
+	}
+
+	private int requestsPerMinute(HttpServletRequest request) {
+		if ("/api/career/market".equals(request.getRequestURI())
+				|| "/api/career/multiverse".equals(request.getRequestURI())) {
+			return careerRequestsPerMinute;
+		}
+		return requestsPerMinute;
 	}
 
 	private String rateLimitMessage(HttpServletRequest request) {
 		if ("/api/jobs/search".equals(request.getRequestURI())) {
 			return "Se supero el limite de busquedas de ofertas por minuto.";
+		}
+		if ("/api/career/market".equals(request.getRequestURI())
+				|| "/api/career/multiverse".equals(request.getRequestURI())) {
+			return "Se supero el limite de consultas de orientacion profesional por minuto.";
 		}
 		return "Se supero el limite de analisis por minuto.";
 	}

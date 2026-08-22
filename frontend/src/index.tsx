@@ -6,6 +6,7 @@ import './styles/globals.css'
 import './styles/loading.css'
 import './styles/theme.css'
 import './styles/components.css'
+import './styles/career-multiverse.css'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

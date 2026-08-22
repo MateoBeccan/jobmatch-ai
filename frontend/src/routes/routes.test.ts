@@ -15,6 +15,11 @@ describe('routes', () => {
     expect(parseRoute('/historial/abc-123')).toEqual({ name: 'detail', id: 'abc-123' })
   })
 
+  it('keeps the Career Multiverse route unchanged', () => {
+    expect(normalizeRoute('/multiverso')).toBe('/multiverso')
+    expect(parseRoute('/multiverso')).toEqual({ name: 'multiverse' })
+  })
+
   it('normalizes unknown routes to home', () => {
     expect(normalizeRoute('/no-existe')).toBe('/')
     expect(parseRoute('/no-existe')).toEqual({ name: 'home' })

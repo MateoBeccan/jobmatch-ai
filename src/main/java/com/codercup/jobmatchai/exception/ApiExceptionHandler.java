@@ -42,6 +42,27 @@ public class ApiExceptionHandler {
 				));
 	}
 
+	@ExceptionHandler(InvalidCareerMarketRequestException.class)
+	public ResponseEntity<ApiErrorResponse> handleInvalidCareerMarketRequest(InvalidCareerMarketRequestException exception) {
+		return ResponseEntity
+				.status(HttpStatus.BAD_REQUEST)
+				.body(new ApiErrorResponse("INVALID_CAREER_MARKET_REQUEST", exception.getMessage()));
+	}
+
+	@ExceptionHandler(InvalidCareerMultiverseRequestException.class)
+	public ResponseEntity<ApiErrorResponse> handleInvalidCareerMultiverseRequest(InvalidCareerMultiverseRequestException exception) {
+		return ResponseEntity
+				.status(HttpStatus.BAD_REQUEST)
+				.body(new ApiErrorResponse("INVALID_CAREER_MULTIVERSE_REQUEST", exception.getMessage()));
+	}
+
+	@ExceptionHandler(InvalidCareerAiResponseException.class)
+	public ResponseEntity<ApiErrorResponse> handleInvalidCareerAiResponse(InvalidCareerAiResponseException exception) {
+		return ResponseEntity
+				.status(HttpStatus.BAD_GATEWAY)
+				.body(new ApiErrorResponse("CAREER_AI_INVALID_RESPONSE", exception.getMessage()));
+	}
+
 	@ExceptionHandler(AnalysisConfigurationException.class)
 	public ResponseEntity<ApiErrorResponse> handleAnalysisConfiguration(AnalysisConfigurationException exception) {
 		LOGGER.error("Analysis service configuration error: {}", exception.getMessage(), exception);
@@ -144,6 +165,22 @@ public class ApiExceptionHandler {
 					.body(new ApiErrorResponse(
 							"INVALID_JOB_SEARCH_REQUEST",
 							"Los criterios de busqueda de ofertas no son validos."
+					));
+		}
+		if (request != null && "/api/career/market".equals(request.getRequestURI())) {
+			return ResponseEntity
+					.status(HttpStatus.BAD_REQUEST)
+					.body(new ApiErrorResponse(
+							"INVALID_CAREER_MARKET_REQUEST",
+							"Los criterios de orientacion profesional no son validos."
+					));
+		}
+		if (request != null && "/api/career/multiverse".equals(request.getRequestURI())) {
+			return ResponseEntity
+					.status(HttpStatus.BAD_REQUEST)
+					.body(new ApiErrorResponse(
+							"INVALID_CAREER_MULTIVERSE_REQUEST",
+							"Los criterios de Career Multiverse no son validos."
 					));
 		}
 		return ResponseEntity

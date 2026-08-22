@@ -3,7 +3,7 @@ import type { DragEvent, FormEvent } from 'react'
 import { createAnalysis, ensureBackendReady } from '../../services/api'
 import { toUserFacingAnalysisError } from '../../services/errorMessages'
 import type { AnalysisErrorView } from '../../services/errorMessages'
-import type { AnalysisMode, AnalysisResponse, Theme } from '../../lib/types/types'
+import type { AnalysisMode, AnalysisResponse, CareerMultiverseRequest, Theme } from '../../lib/types/types'
 import { BottomNav } from '../atoms/BottomNav'
 import { AppHeader } from '../molecules/AppHeader'
 import { LoadingScreen } from '../molecules/LoadingScreen'
@@ -27,6 +27,9 @@ type AnalyzerPageProps = {
   onNavigate: (route: string) => void
   initialOffer?: AnalyzerInitialOffer | null
   onInitialOfferConsumed?: () => void
+  initialResult?: AnalysisResponse | null
+  onResultChange?: (result: AnalysisResponse | null) => void
+  onExploreCareer?: (request: CareerMultiverseRequest) => void
 }
 
 type LoadingPhase = 'idle' | 'preparing' | 'analyzing'
@@ -38,12 +41,21 @@ const ANALYZER_STEPS = [
   { key: 'result', label: 'Resultado' },
 ]
 
-export function AnalyzerPage({ theme, onToggleTheme, onNavigate, initialOffer = null, onInitialOfferConsumed }: AnalyzerPageProps) {
+export function AnalyzerPage({
+  theme,
+  onToggleTheme,
+  onNavigate,
+  initialOffer = null,
+  onInitialOfferConsumed,
+  initialResult = null,
+  onResultChange,
+  onExploreCareer,
+}: AnalyzerPageProps) {
   const [cvFile, setCvFile] = useState<File | null>(null)
   const [jobImage, setJobImage] = useState<File | null>(null)
   const [jobDescription, setJobDescription] = useState(initialOffer?.jobDescription ?? '')
   const [mode, setMode] = useState<AnalysisMode>(initialOffer?.mode ?? 'text')
-  const [result, setResult] = useState<AnalysisResponse | null>(null)
+  const [result, setResult] = useState<AnalysisResponse | null>(initialResult)
   const [error, setError] = useState<AnalysisErrorView | null>(null)
   const [errorKind, setErrorKind] = useState<'validation' | 'analysis'>('validation')
   const [loadingPhase, setLoadingPhase] = useState<LoadingPhase>('idle')
@@ -64,10 +76,19 @@ export function AnalyzerPage({ theme, onToggleTheme, onNavigate, initialOffer = 
   }, [initialOffer, onInitialOfferConsumed])
 
   useEffect(() => {
+    setResult(initialResult)
+  }, [initialResult])
+
+  useEffect(() => {
     if (result) {
       resultsRef.current?.focus()
     }
   }, [result])
+
+  function updateResult(nextResult: AnalysisResponse | null) {
+    setResult(nextResult)
+    onResultChange?.(nextResult)
+  }
 
   function validateFile(file: File, kind: 'cv' | 'image') {
     if (file.size > MAX_FILE_SIZE) {
@@ -146,7 +167,7 @@ export function AnalyzerPage({ theme, onToggleTheme, onNavigate, initialOffer = 
     }
     setJobImage(null)
     setJobDescription('')
-    setResult(null)
+    updateResult(null)
     setError(null)
     setIsDragging(false)
     if (imageInputRef.current) imageInputRef.current.value = ''
@@ -155,7 +176,7 @@ export function AnalyzerPage({ theme, onToggleTheme, onNavigate, initialOffer = 
   async function runAnalysis() {
     if (!cvFile) return
     setError(null)
-    setResult(null)
+    updateResult(null)
     analysisAbortRef.current?.abort()
     const controller = new AbortController()
     analysisAbortRef.current = controller
@@ -165,7 +186,7 @@ export function AnalyzerPage({ theme, onToggleTheme, onNavigate, initialOffer = 
       setLoadingPhase('analyzing')
       const record = await createAnalysis(cvFile, mode, jobDescription.trim(), jobImage, `CV v${versionCount}`, controller.signal)
       setVersionCount((current) => current + 1)
-      setResult(record.result)
+      updateResult(record.result)
     } catch (requestError) {
       if (requestError instanceof DOMException && requestError.name === 'AbortError') return
       setErrorKind('analysis')
@@ -181,7 +202,7 @@ export function AnalyzerPage({ theme, onToggleTheme, onNavigate, initialOffer = 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setError(null)
-    setResult(null)
+    updateResult(null)
 
     if (!cvFile) {
       setErrorKind('validation')
@@ -315,6 +336,7 @@ export function AnalyzerPage({ theme, onToggleTheme, onNavigate, initialOffer = 
             onReset={() => resetForm(true)}
             onReanalyze={() => void runAnalysis()}
             onNavigate={onNavigate}
+            onExploreCareer={onExploreCareer}
           />
         </div>
       )}
