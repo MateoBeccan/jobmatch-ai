@@ -4,6 +4,12 @@ import type {
   AnalysisHistoryPage,
   AnalysisMode,
   AnalysisResponse,
+  CareerLearningPriority,
+  CareerMarketConfidence,
+  CareerMultiverseRequest,
+  CareerMultiverseResponse,
+  CareerPathType,
+  CareerRegion,
   HistoryRecord,
   JobOffer,
   JobSearchLocation,
@@ -20,6 +26,7 @@ import type {
 
 const API_URL = (import.meta.env.VITE_API_URL ?? 'http://localhost:8080').replace(/\/$/, '')
 const REQUEST_TIMEOUT_MS = 150000
+const CAREER_MULTIVERSE_TIMEOUT_MS = 120000
 const HEALTH_PATH = '/actuator/health'
 const WARM_UP_TIMEOUT_MS = 10000
 const BACKEND_READY_TIMEOUT_MS = 180000
@@ -54,6 +61,22 @@ function isJobSeniority(value: unknown): value is JobSeniority {
     || value === 'MID'
     || value === 'SENIOR'
     || value === 'UNSPECIFIED'
+}
+
+function isCareerRegion(value: unknown): value is CareerRegion {
+  return value === 'ARGENTINA' || value === 'LATAM' || value === 'GLOBAL'
+}
+
+function isCareerPathType(value: unknown): value is CareerPathType {
+  return value === 'NATURAL' || value === 'EXPANSION' || value === 'ALTERNATIVE'
+}
+
+function isCareerMarketConfidence(value: unknown): value is CareerMarketConfidence {
+  return value === 'HIGH' || value === 'MEDIUM' || value === 'LOW' || value === 'INSUFFICIENT'
+}
+
+function isCareerLearningPriority(value: unknown): value is CareerLearningPriority {
+  return value === 'NOW' || value === 'NEXT' || value === 'LATER'
 }
 
 function normalizeRequirements(value: unknown): RequirementMatch[] | undefined {
@@ -348,6 +371,146 @@ function normalizeJobSearchResponse(response: unknown): JobSearchResponse {
   }
 }
 
+function normalizeCareerSkillDemand(value: unknown) {
+  if (!isObjectRecord(value)
+    || typeof value.skill !== 'string' || value.skill.trim().length === 0
+    || typeof value.jobsMentioning !== 'number' || !Number.isInteger(value.jobsMentioning) || value.jobsMentioning < 0
+    || typeof value.frequencyPercentage !== 'number' || !Number.isInteger(value.frequencyPercentage) || value.frequencyPercentage < 0 || value.frequencyPercentage > 100) {
+    throw new Error('Career Multiverse devolvio una demanda de habilidades con formato invalido.')
+  }
+
+  return {
+    skill: value.skill.trim(),
+    jobsMentioning: value.jobsMentioning,
+    frequencyPercentage: value.frequencyPercentage,
+  }
+}
+
+function normalizeCareerLearningPriority(value: unknown) {
+  if (!isObjectRecord(value)
+    || typeof value.skill !== 'string' || value.skill.trim().length === 0
+    || typeof value.jobsMentioning !== 'number' || !Number.isInteger(value.jobsMentioning) || value.jobsMentioning < 0
+    || typeof value.frequencyPercentage !== 'number' || !Number.isInteger(value.frequencyPercentage) || value.frequencyPercentage < 0 || value.frequencyPercentage > 100
+    || !isCareerLearningPriority(value.priority)) {
+    throw new Error('Career Multiverse devolvio prioridades de aprendizaje con formato invalido.')
+  }
+
+  return {
+    skill: value.skill.trim(),
+    jobsMentioning: value.jobsMentioning,
+    frequencyPercentage: value.frequencyPercentage,
+    priority: value.priority,
+  }
+}
+
+function normalizeCareerRoadmapStep(value: unknown) {
+  if (!isObjectRecord(value)
+    || typeof value.step !== 'number' || !Number.isInteger(value.step) || value.step < 1
+    || typeof value.title !== 'string' || value.title.trim().length === 0
+    || typeof value.description !== 'string' || value.description.trim().length === 0) {
+    throw new Error('Career Multiverse devolvio un roadmap con formato invalido.')
+  }
+
+  return {
+    step: value.step,
+    title: value.title.trim(),
+    description: value.description.trim(),
+  }
+}
+
+function normalizeCareerProjectChallenge(value: unknown) {
+  if (value === null) return null
+  if (!isObjectRecord(value)
+    || typeof value.title !== 'string' || value.title.trim().length === 0
+    || typeof value.description !== 'string' || value.description.trim().length === 0
+    || !isStringArray(value.skills)) {
+    throw new Error('Career Multiverse devolvio un reto de portfolio con formato invalido.')
+  }
+
+  const skills = value.skills.map((skill) => skill.trim())
+  if (skills.some((skill) => skill.length === 0)) {
+    throw new Error('Career Multiverse devolvio un reto de portfolio con formato invalido.')
+  }
+
+  return {
+    title: value.title.trim(),
+    description: value.description.trim(),
+    skills,
+  }
+}
+
+function normalizeCareerMarket(value: unknown) {
+  if (!isObjectRecord(value)
+    || typeof value.sampleSize !== 'number' || !Number.isInteger(value.sampleSize) || value.sampleSize < 0
+    || !isCareerMarketConfidence(value.confidence)
+    || typeof value.coveragePercentage !== 'number' || !Number.isInteger(value.coveragePercentage) || value.coveragePercentage < 0 || value.coveragePercentage > 100
+    || !isStringArray(value.currentSkillsDetected)
+    || !Array.isArray(value.missingSkills)
+    || !Array.isArray(value.skillDemand)) {
+    throw new Error('Career Multiverse devolvio evidencia de mercado con formato invalido.')
+  }
+
+  return {
+    sampleSize: value.sampleSize,
+    confidence: value.confidence,
+    coveragePercentage: value.coveragePercentage,
+    currentSkillsDetected: value.currentSkillsDetected.map((skill) => skill.trim()).filter(Boolean),
+    missingSkills: value.missingSkills.map(normalizeCareerSkillDemand),
+    skillDemand: value.skillDemand.map(normalizeCareerSkillDemand),
+  }
+}
+
+function normalizeCareerMultiverseResponse(response: unknown): CareerMultiverseResponse {
+  if (!isObjectRecord(response)
+    || typeof response.provider !== 'string' || response.provider.trim().length === 0
+    || !isCareerRegion(response.region)
+    || !isObjectRecord(response.profile)
+    || !Array.isArray(response.paths)) {
+    throw new Error('Career Multiverse devolvio un formato invalido.')
+  }
+
+  const profile = response.profile
+  if (typeof profile.role !== 'string' || profile.role.trim().length === 0
+    || !isJobSeniority(profile.seniority)
+    || !isStringArray(profile.skills)) {
+    throw new Error('Career Multiverse devolvio un perfil con formato invalido.')
+  }
+
+  const paths = response.paths.map((path) => {
+    if (!isObjectRecord(path)
+      || !isCareerPathType(path.type)
+      || typeof path.role !== 'string' || path.role.trim().length === 0
+      || typeof path.summary !== 'string' || path.summary.trim().length === 0
+      || typeof path.rationale !== 'string' || path.rationale.trim().length === 0
+      || !Array.isArray(path.learningPriorities)
+      || !Array.isArray(path.roadmap)) {
+      throw new Error('Career Multiverse devolvio caminos con formato invalido.')
+    }
+
+    return {
+      type: path.type,
+      role: path.role.trim(),
+      summary: path.summary.trim(),
+      rationale: path.rationale.trim(),
+      market: normalizeCareerMarket(path.market),
+      learningPriorities: path.learningPriorities.map(normalizeCareerLearningPriority),
+      roadmap: path.roadmap.map(normalizeCareerRoadmapStep),
+      projectChallenge: normalizeCareerProjectChallenge(path.projectChallenge),
+    }
+  })
+
+  return {
+    provider: response.provider.trim(),
+    region: response.region,
+    profile: {
+      role: profile.role.trim(),
+      seniority: profile.seniority,
+      skills: profile.skills.map((skill) => skill.trim()).filter(Boolean),
+    },
+    paths,
+  }
+}
+
 async function mockDelay(ms = 900) {
   await new Promise((resolve) => setTimeout(resolve, ms))
 }
@@ -424,14 +587,14 @@ function buildHistoryRecord(
   }
 }
 
-async function request(path: string, init: RequestInit, fallbackMessage: string) {
+async function request(path: string, init: RequestInit, fallbackMessage: string, timeoutMs = REQUEST_TIMEOUT_MS) {
   let response: Response
   const controller = new AbortController()
   let timedOut = false
   const timeout = setTimeout(() => {
     timedOut = true
     controller.abort()
-  }, REQUEST_TIMEOUT_MS)
+  }, timeoutMs)
   const abortRequest = () => controller.abort()
   init.signal?.addEventListener('abort', abortRequest, { once: true })
   try {
@@ -490,6 +653,25 @@ function fallbackErrorCode(status: number, path: string) {
     }
   }
 
+  if (path === '/api/career/multiverse') {
+    switch (status) {
+      case 400:
+        return 'INVALID_CAREER_MULTIVERSE_REQUEST'
+      case 429:
+        return 'RATE_LIMIT_EXCEEDED'
+      case 502:
+        return 'CAREER_AI_INVALID_RESPONSE'
+      case 503:
+        return 'AI_UNAVAILABLE'
+      case 504:
+        return 'AI_TIMEOUT'
+      case 500:
+        return 'INTERNAL_ERROR'
+      default:
+        return undefined
+    }
+  }
+
   switch (status) {
     case 400:
       return 'INVALID_REQUEST'
@@ -510,8 +692,8 @@ function fallbackErrorCode(status: number, path: string) {
   }
 }
 
-async function requestJson<T>(path: string, init: RequestInit, fallbackMessage: string): Promise<T> {
-  const response = await request(path, init, fallbackMessage)
+async function requestJson<T>(path: string, init: RequestInit, fallbackMessage: string, timeoutMs = REQUEST_TIMEOUT_MS): Promise<T> {
+  const response = await request(path, init, fallbackMessage, timeoutMs)
   return response.json() as Promise<T>
 }
 
@@ -595,6 +777,35 @@ export async function searchJobs(
     'No pudimos buscar ofertas en este momento.',
   )
   return normalizeJobSearchResponse(response)
+}
+
+export async function generateCareerMultiverse(
+  requestPayload: CareerMultiverseRequest,
+  signal?: AbortSignal,
+): Promise<CareerMultiverseResponse> {
+  const role = requestPayload.role.trim()
+  const skills = requestPayload.skills.map((skill) => skill.trim()).filter(Boolean)
+  if (!role || !isJobSeniority(requestPayload.seniority) || skills.length === 0 || !isCareerRegion(requestPayload.region)) {
+    throw new ApiRequestError('No pudimos explorar caminos con este perfil.', 400, 'INVALID_CAREER_MULTIVERSE_REQUEST')
+  }
+
+  const response = await requestJson<unknown>(
+    '/api/career/multiverse',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        role,
+        seniority: requestPayload.seniority,
+        skills,
+        region: requestPayload.region,
+      }),
+      signal,
+    },
+    'No pudimos explorar tus caminos profesionales en este momento.',
+    CAREER_MULTIVERSE_TIMEOUT_MS,
+  )
+  return normalizeCareerMultiverseResponse(response)
 }
 
 export async function getAnalyses(page = 0, size = 20, signal?: AbortSignal): Promise<AnalysisHistoryPage> {

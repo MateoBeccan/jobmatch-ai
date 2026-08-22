@@ -111,6 +111,51 @@ class RateLimitFilterTest {
 	}
 
 	@Test
+	void careerEndpointHasIndependentBucketFromAnalyzeAndJobs() throws Exception {
+		authenticateAnonymously();
+
+		for (int index = 0; index < REQUESTS_PER_MINUTE; index++) {
+			assertThat(performCareerMarketRequest("198.51.100.25", "203.0.113.10").getStatus())
+					.isEqualTo(HttpStatus.OK.value());
+		}
+
+		assertTooManyRequests(performCareerMultiverseRequest("198.51.100.25", "203.0.113.10"));
+		assertThat(performAnalyzeRequest("198.51.100.25", "203.0.113.10").getStatus())
+				.isEqualTo(HttpStatus.OK.value());
+		assertThat(performJobsRequest("198.51.100.25", "203.0.113.10").getStatus())
+				.isEqualTo(HttpStatus.OK.value());
+	}
+
+	@Test
+	void careerMarketAndMultiverseShareCareerBucket() throws Exception {
+		authenticateAnonymously();
+
+		for (int index = 0; index < REQUESTS_PER_MINUTE; index++) {
+			MockHttpServletResponse response = index % 2 == 0
+					? performCareerMarketRequest("198.51.100.25", "203.0.113.10")
+					: performCareerMultiverseRequest("198.51.100.25", "203.0.113.10");
+			assertThat(response.getStatus()).isEqualTo(HttpStatus.OK.value());
+		}
+
+		assertTooManyRequests(performCareerMultiverseRequest("198.51.100.25", "203.0.113.10"));
+	}
+
+	@Test
+	void analyzeAndJobsDoNotConsumeCareerBucket() throws Exception {
+		authenticateAnonymously();
+
+		for (int index = 0; index < REQUESTS_PER_MINUTE; index++) {
+			assertThat(performAnalyzeRequest("198.51.100.25", "203.0.113.10").getStatus())
+					.isEqualTo(HttpStatus.OK.value());
+			assertThat(performJobsRequest("198.51.100.25", "203.0.113.10").getStatus())
+					.isEqualTo(HttpStatus.OK.value());
+		}
+
+		assertThat(performCareerMultiverseRequest("198.51.100.25", "203.0.113.10").getStatus())
+				.isEqualTo(HttpStatus.OK.value());
+	}
+
+	@Test
 	void analyzeEndpointHasIndependentBucketFromJobs() throws Exception {
 		authenticateAnonymously();
 
@@ -165,6 +210,21 @@ class RateLimitFilterTest {
 		assertThat(response.getContentAsString()).contains("Se supero el limite de busquedas de ofertas por minuto.");
 	}
 
+	@Test
+	void careerTooManyRequestsResponseIncludesSpecificMessage() throws Exception {
+		authenticateAnonymously();
+
+		for (int index = 0; index < REQUESTS_PER_MINUTE; index++) {
+			performCareerMultiverseRequest("198.51.100.25", "203.0.113.10");
+		}
+
+		MockHttpServletResponse response = performCareerMarketRequest("198.51.100.25", "203.0.113.10");
+
+		assertTooManyRequests(response);
+		assertThat(response.getContentAsString())
+				.contains("Se supero el limite de consultas de orientacion profesional por minuto.");
+	}
+
 	private MockHttpServletResponse performAnalyzeRequest(String remoteAddr, String cfConnectingIp)
 			throws ServletException, IOException {
 		MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/analyze");
@@ -174,6 +234,18 @@ class RateLimitFilterTest {
 	private MockHttpServletResponse performJobsRequest(String remoteAddr, String cfConnectingIp)
 			throws ServletException, IOException {
 		MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/jobs/search");
+		return performRequest(request, remoteAddr, cfConnectingIp);
+	}
+
+	private MockHttpServletResponse performCareerMarketRequest(String remoteAddr, String cfConnectingIp)
+			throws ServletException, IOException {
+		MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/career/market");
+		return performRequest(request, remoteAddr, cfConnectingIp);
+	}
+
+	private MockHttpServletResponse performCareerMultiverseRequest(String remoteAddr, String cfConnectingIp)
+			throws ServletException, IOException {
+		MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/career/multiverse");
 		return performRequest(request, remoteAddr, cfConnectingIp);
 	}
 

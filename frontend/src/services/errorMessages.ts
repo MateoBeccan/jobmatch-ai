@@ -176,3 +176,81 @@ function jobSearchRateLimitMessage(retryAfterSeconds?: number) {
 
   return 'Realizaste varias busquedas en poco tiempo. Espera un momento antes de intentar nuevamente.'
 }
+
+export function toUserFacingCareerMultiverseError(error: unknown): AnalysisErrorView {
+  if (!(error instanceof ApiRequestError)) {
+    return {
+      title: 'No pudimos explorar tus caminos',
+      message: 'No pudimos explorar tus caminos profesionales en este momento.',
+      retryable: true,
+    }
+  }
+
+  switch (error.code) {
+    case 'INVALID_CAREER_MULTIVERSE_REQUEST':
+      return {
+        title: 'Primero necesitamos un perfil valido',
+        message: 'No pudimos explorar caminos con este perfil. Realiza un nuevo analisis para actualizarlo.',
+        retryable: false,
+      }
+    case 'CAREER_AI_INVALID_RESPONSE':
+    case 'AI_INVALID_RESPONSE':
+      return {
+        title: 'No pudimos interpretar los caminos',
+        message: 'La inteligencia artificial devolvio una respuesta que no pudimos interpretar. Intenta nuevamente.',
+        retryable: true,
+      }
+    case 'AI_UNAVAILABLE':
+      return {
+        title: 'Servicio temporalmente no disponible',
+        message: 'No pudimos explorar tus caminos porque el servicio de inteligencia artificial no esta disponible en este momento.',
+        retryable: true,
+      }
+    case 'AI_TIMEOUT':
+    case 'FRONTEND_TIMEOUT':
+      return {
+        title: 'La exploracion tardo demasiado',
+        message: 'La exploracion de caminos profesionales tardo mas de lo esperado. Intenta nuevamente.',
+        retryable: true,
+      }
+    case 'JOB_SEARCH_UNAVAILABLE':
+      return {
+        title: 'Mercado temporalmente no disponible',
+        message: 'No pudimos contrastar tus caminos con ofertas actuales en este momento.',
+        retryable: true,
+      }
+    case 'JOB_SEARCH_TIMEOUT':
+      return {
+        title: 'El mercado tardo demasiado',
+        message: 'La consulta de ofertas tardo mas de lo esperado. Intenta nuevamente.',
+        retryable: true,
+      }
+    case 'RATE_LIMIT_EXCEEDED':
+      return {
+        title: 'Limite temporal alcanzado',
+        message: careerRateLimitMessage(error.retryAfterSeconds),
+        retryable: false,
+      }
+    case 'CONNECTION_ERROR':
+      return {
+        title: 'No pudimos conectarnos',
+        message: 'No pudimos conectarnos con el servicio de Career Multiverse. Intenta nuevamente en unos instantes.',
+        retryable: true,
+      }
+    case 'INTERNAL_ERROR':
+    default:
+      return {
+        title: 'No pudimos explorar tus caminos',
+        message: 'No pudimos explorar tus caminos profesionales en este momento.',
+        retryable: true,
+      }
+  }
+}
+
+function careerRateLimitMessage(retryAfterSeconds?: number) {
+  if (retryAfterSeconds && retryAfterSeconds > 0) {
+    return `Realizaste varias exploraciones en poco tiempo. Espera ${retryAfterSeconds} segundos antes de intentar nuevamente.`
+  }
+
+  return 'Realizaste varias exploraciones en poco tiempo. Espera un momento antes de intentar nuevamente.'
+}

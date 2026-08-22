@@ -58,4 +58,26 @@ class SkillNormalizerTest {
 		assertThat(SkillNormalizer.equivalentSkill("REST API", "RESTful APIs")).isTrue();
 		assertThat(SkillNormalizer.canonicalizeSkill("RESTful services")).isEqualTo("REST APIs");
 	}
+
+	@Test
+	void canonicalizesCareerMarketAliases() {
+		assertThat(SkillNormalizer.equivalentSkill("Continuous Integration", "CI/CD")).isTrue();
+		assertThat(SkillNormalizer.equivalentSkill("Continuous Delivery", "CI/CD")).isTrue();
+		assertThat(SkillNormalizer.equivalentSkill("Github Actions", "GitHub Actions")).isTrue();
+		assertThat(SkillNormalizer.equivalentSkill("Micro-service", "Microservices")).isTrue();
+		assertThat(SkillNormalizer.equivalentSkill("Java Persistence API", "JPA")).isTrue();
+		assertThat(SkillNormalizer.equivalentSkill("Fast API", "FastAPI")).isTrue();
+		assertThat(SkillNormalizer.equivalentSkill("SCSS", "Sass")).isTrue();
+	}
+
+	@Test
+	void detectsCanonicalSkillsWithSafeBoundaries() {
+		assertThat(SkillNormalizer.containsCanonicalSkill("We use JavaScript and NoSQL", "Java")).isFalse();
+		assertThat(SkillNormalizer.containsCanonicalSkill("We use JavaScript and NoSQL", "SQL")).isFalse();
+		assertThat(SkillNormalizer.containsCanonicalSkill("We use Java and SQL", "Java")).isTrue();
+		assertThat(SkillNormalizer.containsCanonicalSkill("We use Java and SQL", "SQL")).isTrue();
+		assertThat(SkillNormalizer.containsCanonicalSkill("K8s and Postgres", "Kubernetes")).isTrue();
+		assertThat(SkillNormalizer.containsCanonicalSkill("K8s and Postgres", "PostgreSQL")).isTrue();
+		assertThat(SkillNormalizer.containsCanonicalSkill("React Native mobile work", "React")).isFalse();
+	}
 }

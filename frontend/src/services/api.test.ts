@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { analyzeCV, ApiRequestError, createAnalysis, deleteAnalysis, ensureBackendReady, getAnalyses, getAnalysis, searchJobs, warmUpBackend } from './api'
+import { analyzeCV, ApiRequestError, createAnalysis, deleteAnalysis, ensureBackendReady, generateCareerMultiverse, getAnalyses, getAnalysis, searchJobs, warmUpBackend } from './api'
 import { getHistory, saveHistoryRecord } from '../lib/storage/historyStorage'
-import type { AnalysisResponse, HistoryRecord, JobSearchProfile, JobSearchResponse } from '../lib/types/types'
+import type { AnalysisResponse, CareerMultiverseRequest, CareerMultiverseResponse, HistoryRecord, JobSearchProfile, JobSearchResponse } from '../lib/types/types'
 
 const analysisResponse: AnalysisResponse = {
   matchPercentage: 82,
@@ -48,6 +48,28 @@ const jobSearchResponse: JobSearchResponse = {
       source: 'Jobicy',
       matchedKeywords: ['Java', 'Spring Boot'],
     },
+  ],
+}
+
+const careerMultiverseRequest: CareerMultiverseRequest = {
+  role: 'Java Backend Developer',
+  seniority: 'JUNIOR',
+  skills: ['Java', 'Spring Boot', 'SQL'],
+  region: 'LATAM',
+}
+
+const careerMultiverseResponse: CareerMultiverseResponse = {
+  provider: 'JOBICY',
+  region: 'LATAM',
+  profile: {
+    role: 'Java Backend Developer',
+    seniority: 'JUNIOR',
+    skills: ['Java', 'Spring Boot', 'SQL'],
+  },
+  paths: [
+    careerPath('NATURAL', 'Java Backend Developer', 71, 'HIGH'),
+    careerPath('EXPANSION', 'Cloud Backend Developer', 48, 'MEDIUM'),
+    careerPath('ALTERNATIVE', 'QA Automation Engineer', 32, 'LOW'),
   ],
 }
 
@@ -794,6 +816,97 @@ describe('api', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
+  it('generateCareerMultiverse posts the exact backend contract and no analysis details', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(careerMultiverseResponse))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await generateCareerMultiverse({
+      ...careerMultiverseRequest,
+      skills: [' Java ', 'Spring Boot', 'SQL'],
+    })
+
+    expect(fetchMock).toHaveBeenCalledOnce()
+    expect(fetchMock).toHaveBeenCalledWith('http://localhost:8080/api/career/multiverse', expect.objectContaining({
+      method: 'POST',
+      headers: expect.objectContaining({
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      }),
+    }))
+    const init = fetchMock.mock.calls[0][1] as RequestInit
+    expect(JSON.parse(init.body as string)).toEqual({
+      role: 'Java Backend Developer',
+      seniority: 'JUNIOR',
+      skills: ['Java', 'Spring Boot', 'SQL'],
+      region: 'LATAM',
+    })
+    expect(init.body).not.toContain('cv')
+    expect(init.body).not.toContain('cvFile')
+    expect(init.body).not.toContain('jobDescription')
+    expect(init.body).not.toContain('jobImage')
+    expect(init.body).not.toContain('email')
+    expect(init.body).not.toContain('nombre')
+    expect(init.body).not.toContain('missingSkills')
+  })
+
+  it('generateCareerMultiverse normalizes the real response contract', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(careerMultiverseResponse)))
+
+    await expect(generateCareerMultiverse(careerMultiverseRequest)).resolves.toEqual(careerMultiverseResponse)
+  })
+
+  it('generateCareerMultiverse rejects invalid frontend requests before fetch', async () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(generateCareerMultiverse({ ...careerMultiverseRequest, skills: [] }))
+      .rejects.toMatchObject({ code: 'INVALID_CAREER_MULTIVERSE_REQUEST', status: 400 })
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('generateCareerMultiverse preserves AI, Jobicy, and rate-limit errors', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(errorResponse(
+      502,
+      { code: 'CAREER_AI_INVALID_RESPONSE', message: 'Respuesta invalida.' },
+    )))
+    await expect(generateCareerMultiverse(careerMultiverseRequest)).rejects.toMatchObject({
+      status: 502,
+      code: 'CAREER_AI_INVALID_RESPONSE',
+    })
+
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(errorResponse(
+      503,
+      { code: 'JOB_SEARCH_UNAVAILABLE', message: 'Ofertas no disponibles.' },
+    )))
+    await expect(generateCareerMultiverse(careerMultiverseRequest)).rejects.toMatchObject({
+      status: 503,
+      code: 'JOB_SEARCH_UNAVAILABLE',
+    })
+
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(errorResponse(
+      429,
+      { code: 'RATE_LIMIT_EXCEEDED', message: 'Limite.' },
+      { 'Retry-After': '45' },
+    )))
+    await expect(generateCareerMultiverse(careerMultiverseRequest)).rejects.toMatchObject({
+      status: 429,
+      code: 'RATE_LIMIT_EXCEEDED',
+      retryAfterSeconds: 45,
+    })
+  })
+
+  it('generateCareerMultiverse does not retry automatically or mutate localStorage', async () => {
+    const fetchMock = vi.fn().mockRejectedValue(new TypeError('network failed'))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(generateCareerMultiverse(careerMultiverseRequest)).rejects.toMatchObject({
+      code: 'CONNECTION_ERROR',
+    })
+
+    expect(fetchMock).toHaveBeenCalledOnce()
+    expect(storage.getItem(HISTORY_STORAGE_KEY)).toBeNull()
+  })
+
   it('ensureBackendReady resolves when health returns UP JSON', async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ status: 'UP' }))
     vi.stubGlobal('fetch', fetchMock)
@@ -981,5 +1094,45 @@ class MemoryStorage implements Storage {
   setItem(key: string, value: string) {
     if (this.throwOnSet) throw new DOMException('Storage quota exceeded', 'QuotaExceededError')
     this.items.set(key, value)
+  }
+}
+
+function careerPath(
+  type: CareerMultiverseResponse['paths'][number]['type'],
+  role: string,
+  coveragePercentage: number,
+  confidence: CareerMultiverseResponse['paths'][number]['market']['confidence'],
+): CareerMultiverseResponse['paths'][number] {
+  return {
+    type,
+    role,
+    summary: `${role} summary`,
+    rationale: `${role} rationale`,
+    market: {
+      sampleSize: confidence === 'INSUFFICIENT' ? 0 : 22,
+      confidence,
+      coveragePercentage,
+      currentSkillsDetected: ['Java', 'SQL'],
+      missingSkills: [
+        { skill: 'Docker', jobsMentioning: 14, frequencyPercentage: 64 },
+      ],
+      skillDemand: [
+        { skill: 'Java', jobsMentioning: 18, frequencyPercentage: 82 },
+        { skill: 'Docker', jobsMentioning: 14, frequencyPercentage: 64 },
+      ],
+    },
+    learningPriorities: [
+      { skill: 'Docker', jobsMentioning: 14, frequencyPercentage: 64, priority: 'NOW' },
+      { skill: 'AWS', jobsMentioning: 9, frequencyPercentage: 41, priority: 'NEXT' },
+      { skill: 'Kubernetes', jobsMentioning: 4, frequencyPercentage: 18, priority: 'LATER' },
+    ],
+    roadmap: [
+      { step: 1, title: 'Aprende fundamentos de Docker', description: 'Practica Docker en un proyecto.' },
+    ],
+    projectChallenge: {
+      title: 'Prepara un proyecto de portfolio',
+      description: 'Crea una aplicacion y documenta decisiones tecnicas.',
+      skills: ['Docker'],
+    },
   }
 }

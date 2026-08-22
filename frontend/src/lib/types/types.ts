@@ -50,6 +50,92 @@ export type JobSearchLocation =
   | 'LATAM'
   | 'Global'
 
+export type CareerRegion =
+  | 'ARGENTINA'
+  | 'LATAM'
+  | 'GLOBAL'
+
+export type CareerPathType =
+  | 'NATURAL'
+  | 'EXPANSION'
+  | 'ALTERNATIVE'
+
+export type CareerMarketConfidence =
+  | 'HIGH'
+  | 'MEDIUM'
+  | 'LOW'
+  | 'INSUFFICIENT'
+
+export type CareerLearningPriority =
+  | 'NOW'
+  | 'NEXT'
+  | 'LATER'
+
+export type CareerMultiverseRequest = {
+  role: string
+  seniority: JobSeniority
+  skills: string[]
+  region: CareerRegion
+}
+
+export type CareerSkillDemand = {
+  skill: string
+  jobsMentioning: number
+  frequencyPercentage: number
+}
+
+export type CareerPathMarket = {
+  sampleSize: number
+  confidence: CareerMarketConfidence
+  coveragePercentage: number
+  currentSkillsDetected: string[]
+  missingSkills: CareerSkillDemand[]
+  skillDemand: CareerSkillDemand[]
+}
+
+export type CareerLearningPriorityItem = {
+  skill: string
+  jobsMentioning: number
+  frequencyPercentage: number
+  priority: CareerLearningPriority
+}
+
+export type CareerRoadmapStep = {
+  step: number
+  title: string
+  description: string
+}
+
+export type CareerProjectChallenge = {
+  title: string
+  description: string
+  skills: string[]
+}
+
+export type CareerProfile = {
+  role: string
+  seniority: JobSeniority
+  skills: string[]
+}
+
+export type CareerPath = {
+  type: CareerPathType
+  role: string
+  summary: string
+  rationale: string
+  market: CareerPathMarket
+  learningPriorities: CareerLearningPriorityItem[]
+  roadmap: CareerRoadmapStep[]
+  projectChallenge: CareerProjectChallenge | null
+}
+
+export type CareerMultiverseResponse = {
+  provider: string
+  region: CareerRegion
+  profile: CareerProfile
+  paths: CareerPath[]
+}
+
 export type JobSearchRequest = {
   role: string
   seniority: JobSeniority

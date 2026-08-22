@@ -8,7 +8,7 @@ import { RecommendationList } from './RecommendationList'
 import { CvOptimizationPanel } from './CvOptimizationPanel'
 import { InterviewQuestionsPanel } from './InterviewQuestionsPanel'
 import { JobSearchPanel } from './JobSearchPanel'
-import type { AnalysisResponse, CriticalRequirementGap, ExperienceGap, ScoreBreakdown } from '../../lib/types/types'
+import type { AnalysisResponse, CareerMultiverseRequest, CareerRegion, CriticalRequirementGap, ExperienceGap, JobSearchProfile, ScoreBreakdown } from '../../lib/types/types'
 import { buildCvSuggestions, buildScoreExplanation, toStructuredRecommendations } from '../../lib/helpers/analysis'
 import { getScoreClass } from '../../lib/helpers/format'
 
@@ -17,6 +17,7 @@ type ResultsProps = {
   onReset: () => void
   onReanalyze?: () => void
   onNavigate: (route: string) => void
+  onExploreCareer?: (request: CareerMultiverseRequest) => void
 }
 
 const BREAKDOWN_LABELS: Array<{ key: keyof ScoreBreakdown; label: string; caption: string }> = [
@@ -41,7 +42,14 @@ const EXPERIENCE_STATUS_LABELS: Record<ExperienceGap['status'], string> = {
 
 const INITIAL_WARNING_COUNT = 3
 
-export function Results({ result, onReset, onReanalyze, onNavigate }: ResultsProps) {
+const CAREER_REGION_OPTIONS: Array<{ value: CareerRegion; label: string }> = [
+  { value: 'ARGENTINA', label: 'Argentina' },
+  { value: 'LATAM', label: 'LATAM' },
+  { value: 'GLOBAL', label: 'Global' },
+]
+
+export function Results({ result, onReset, onReanalyze, onNavigate, onExploreCareer }: ResultsProps) {
+  const [careerRegion, setCareerRegion] = useState<CareerRegion>('LATAM')
   const scoreClass = getScoreClass(result.matchPercentage)
   const scoreTitle = result.matchPercentage >= 80
     ? 'Un encaje muy prometedor'
@@ -57,6 +65,7 @@ export function Results({ result, onReset, onReanalyze, onNavigate }: ResultsPro
   const suggestions = useMemo(() => buildCvSuggestions(result), [result])
   const explanation = useMemo(() => buildScoreExplanation(result), [result])
   const structuredRecommendations = useMemo(() => toStructuredRecommendations(result.recommendations), [result.recommendations])
+  const careerProfile = useMemo(() => buildCareerRequest(result.jobSearchProfile, careerRegion), [careerRegion, result.jobSearchProfile])
 
   const scrollToOptimization = () => {
     document.getElementById('optimizar-cv')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
@@ -116,6 +125,34 @@ export function Results({ result, onReset, onReanalyze, onNavigate }: ResultsPro
             profile={result.jobSearchProfile}
           />
         )}
+        {careerProfile && onExploreCareer && (
+          <section className="results-panel career-cta-panel" aria-labelledby="career-cta-title">
+            <div>
+              <span className="panel-eyebrow">Career Multiverse</span>
+              <h2 id="career-cta-title">Tu perfil puede llevarte por distintos caminos.</h2>
+              <p>Explora rutas profesionales relacionadas con tus habilidades y contrastalas con senales del mercado laboral actual.</p>
+            </div>
+            <div className="career-cta-controls">
+              <fieldset>
+                <legend>Donde queres explorar oportunidades?</legend>
+                <div className="career-region-options">
+                  {CAREER_REGION_OPTIONS.map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      aria-pressed={careerRegion === option.value}
+                      className={careerRegion === option.value ? 'active' : ''}
+                      onClick={() => setCareerRegion(option.value)}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              </fieldset>
+              <button type="button" className="primary-action" onClick={() => onExploreCareer(careerProfile)}>Explorar mi futuro</button>
+            </div>
+          </section>
+        )}
       </div>
 
       <div className="result-actions">
@@ -126,6 +163,20 @@ export function Results({ result, onReset, onReanalyze, onNavigate }: ResultsPro
       <BottomNav active="results" onNavigate={onNavigate} />
     </section>
   )
+}
+
+function buildCareerRequest(profile: JobSearchProfile | undefined, region: CareerRegion): CareerMultiverseRequest | null {
+  if (!profile) return null
+  const role = profile.role.trim()
+  const skills = profile.keywords.map((keyword) => keyword.trim()).filter(Boolean)
+  if (!role || !profile.seniority || skills.length === 0 || !region) return null
+
+  return {
+    role,
+    seniority: profile.seniority,
+    skills,
+    region,
+  }
 }
 
 function WarningsBlock({ warnings }: { warnings: string[] }) {

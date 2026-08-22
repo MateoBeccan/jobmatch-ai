@@ -65,6 +65,18 @@ class ApiExceptionHandlerTest {
 	}
 
 	@Test
+	void handleInvalidCareerMultiverseRequestReturnsSpecificSafeCode() {
+		ResponseEntity<ApiExceptionHandler.ApiErrorResponse> response = handler.handleInvalidCareerMultiverseRequest(
+				new InvalidCareerMultiverseRequestException()
+		);
+
+		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+		assertThat(response.getBody()).isNotNull();
+		assertThat(response.getBody().code()).isEqualTo("INVALID_CAREER_MULTIVERSE_REQUEST");
+		assertThat(response.getBody().message()).isEqualTo("Los criterios de Career Multiverse no son validos.");
+	}
+
+	@Test
 	void handleMissingRequestPartReturnsMissingRequestDataCode() throws Exception {
 		ResponseEntity<ApiExceptionHandler.ApiErrorResponse> response = handler.handleMissingRequestPart(
 				new MissingServletRequestParameterException("cvFile", "MultipartFile")
@@ -159,6 +171,20 @@ class ApiExceptionHandlerTest {
 	}
 
 	@Test
+	void handleInvalidCareerAiResponseReturnsBadGatewayCode() {
+		ResponseEntity<ApiExceptionHandler.ApiErrorResponse> response = handler.handleInvalidCareerAiResponse(
+				new InvalidCareerAiResponseException(new RuntimeException("raw provider detail"))
+		);
+
+		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_GATEWAY);
+		assertThat(response.getBody()).isNotNull();
+		assertThat(response.getBody().code()).isEqualTo("CAREER_AI_INVALID_RESPONSE");
+		assertThat(response.getBody().message())
+				.isEqualTo("No pudimos generar tus caminos profesionales en este momento.");
+		assertThat(response.getBody().message()).doesNotContain("raw provider detail");
+	}
+
+	@Test
 	void handleInvalidJobSearchResponseReturnsBadGatewayCode() {
 		ResponseEntity<ApiExceptionHandler.ApiErrorResponse> response = handler.handleInvalidJobSearchResponse(
 				new InvalidJobSearchResponseException("raw provider detail")
@@ -210,6 +236,22 @@ class ApiExceptionHandlerTest {
 		assertThat(response.getBody()).isNotNull();
 		assertThat(response.getBody().code()).isEqualTo("INVALID_JOB_SEARCH_REQUEST");
 		assertThat(response.getBody().message()).isEqualTo("Los criterios de busqueda de ofertas no son validos.");
+		assertThat(response.getBody().message()).doesNotContain("raw jackson detail");
+	}
+
+	@Test
+	void handleUnreadableCareerMultiverseRequestReturnsCareerMultiverseCode() {
+		MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/career/multiverse");
+
+		ResponseEntity<ApiExceptionHandler.ApiErrorResponse> response = handler.handleUnreadableRequestBody(
+				new HttpMessageNotReadableException("raw jackson detail", (HttpInputMessage) null),
+				request
+		);
+
+		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+		assertThat(response.getBody()).isNotNull();
+		assertThat(response.getBody().code()).isEqualTo("INVALID_CAREER_MULTIVERSE_REQUEST");
+		assertThat(response.getBody().message()).isEqualTo("Los criterios de Career Multiverse no son validos.");
 		assertThat(response.getBody().message()).doesNotContain("raw jackson detail");
 	}
 
