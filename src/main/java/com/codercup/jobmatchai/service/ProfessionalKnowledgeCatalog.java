@@ -76,6 +76,18 @@ public final class ProfessionalKnowledgeCatalog {
 		return Optional.ofNullable(ENTRIES_BY_ALIAS_KEY.get(comparisonKey(alias)));
 	}
 
+	public static Optional<ProfessionalKnowledgeEntry> findByCanonicalOrAlias(String value) {
+		if (value == null) {
+			return Optional.empty();
+		}
+		String key = comparisonKey(value);
+		ProfessionalKnowledgeEntry canonical = ENTRIES_BY_CANONICAL_KEY.get(key);
+		if (canonical != null) {
+			return Optional.of(canonical);
+		}
+		return Optional.ofNullable(ENTRIES_BY_ALIAS_KEY.get(key));
+	}
+
 	public static String canonicalizeProfessionalKnowledge(String raw) {
 		if (raw == null) {
 			return null;
@@ -114,8 +126,27 @@ public final class ProfessionalKnowledgeCatalog {
 		if ("React".equals(entry.canonicalName())) {
 			aliasPattern = aliasPattern + "(?!\\s+native)";
 		}
-		return Pattern.compile("(^|[^a-z0-9])" + aliasPattern + "([^a-z0-9]|$)")
-				.matcher(normalized)
+		java.util.regex.Matcher matcher = Pattern.compile("(^|[^a-z0-9])" + aliasPattern + "([^a-z0-9]|$)")
+				.matcher(normalized);
+		while (matcher.find()) {
+			if (!isNegatedMention(normalized, matcher.start())) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private static boolean isNegatedMention(String normalizedText, int matchStart) {
+		int contextStart = Math.max(0, matchStart - 36);
+		String before = normalizedText.substring(contextStart, matchStart);
+		return Pattern.compile(
+						"(?:^|\\s)(?:sin|without|lacks|lack of)\\s*$"
+								+ "|(?:^|\\s)no\\s*$"
+								+ "|(?:^|\\s)no\\s+se\\s+requiere\\s*$"
+								+ "|(?:^|\\s)no\\s+tengo\\s+experiencia(?:\\s+profesional)?\\s+con\\s*$"
+								+ "|(?:^|\\s)no\\s+have\\s+(?:professional\\s+)?experience\\s+with\\s*$"
+				)
+				.matcher(before)
 				.find();
 	}
 

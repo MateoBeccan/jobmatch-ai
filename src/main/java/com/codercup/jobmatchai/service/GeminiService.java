@@ -639,6 +639,14 @@ public class GeminiService {
 				- No reemplaza la lectura completa del CV, la oferta o la imagen.
 				- No autoriza a inventar experiencia, anos de uso, seniority ni nivel de dominio.
 				- Una herramienta detectada no demuestra experiencia profesional temporal.
+				- DETERMINISTIC CV KNOWLEDGE representa evidencia textual explicita detectada por el backend.
+				  No clasifiques estos items como ausentes. Su presencia prueba mencion o evidencia de conocimiento,
+				  pero no prueba anos de experiencia profesional, nivel de proficiency, seniority, experiencia en
+				  produccion, certificacion ni mastery.
+				- Si una knowledge entry fue detectada en el CV, no recomiendes aprenderla salvo que el requisito sea
+				  claramente de profundidad, experiencia profesional, nivel avanzado, certificacion o dominio.
+				- DETERMINISTIC JOB KNOWLEDGE representa conocimiento profesional explicito detectado en la descripcion
+				  textual de la oferta. Usalo solo como evidencia de apoyo.
 
 				CONOCIMIENTO PROFESIONAL DETECTADO DE FORMA DETERMINISTICA EN EL CV:
 				%s

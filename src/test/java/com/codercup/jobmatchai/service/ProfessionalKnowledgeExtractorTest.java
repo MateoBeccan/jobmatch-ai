@@ -51,6 +51,45 @@ class ProfessionalKnowledgeExtractorTest {
 	}
 
 	@Test
+	void ignoresSimpleNegatedKnowledgeMentions() {
+		assertThat(extractor.extractCanonicalNames("sin Docker"))
+				.doesNotContain("Docker");
+		assertThat(extractor.extractCanonicalNames("no Docker"))
+				.doesNotContain("Docker");
+		assertThat(extractor.extractCanonicalNames("without Kubernetes"))
+				.doesNotContain("Kubernetes");
+		assertThat(extractor.extractCanonicalNames("CV backend con Java y SQL, sin Spring Boot."))
+				.containsExactly("Java", "SQL");
+		assertThat(extractor.extractCanonicalNames("CV with Java, Spring Boot and junior backend experience, no Docker."))
+				.containsExactly("Java", "Spring Boot");
+		assertThat(extractor.extractCanonicalNames("Candidate works with Java without Kubernetes production exposure."))
+				.containsExactly("Java");
+	}
+
+	@Test
+	void doesNotTreatNotOnlyPhrasesAsNegatedKnowledge() {
+		assertThat(extractor.extractCanonicalNames("Experiencia no solo Docker, tambien Kubernetes."))
+				.contains("Docker", "Kubernetes");
+		assertThat(extractor.extractCanonicalNames("Experiencia no sólo Docker, tambien Kubernetes."))
+				.contains("Docker", "Kubernetes");
+		assertThat(extractor.extractCanonicalNames("Experience not only Docker but also Kubernetes."))
+				.contains("Docker", "Kubernetes");
+	}
+
+	@Test
+	void scopesNegationToTheFollowingKnowledgeMention() {
+		assertThat(extractor.extractCanonicalNames("Experiencia con Docker, no Kubernetes."))
+				.containsExactly("Docker");
+	}
+
+	@Test
+	void documentsComplexExperienceNegationLimitation() {
+		assertThat(extractor.extractCanonicalNames(
+				"no tengo experiencia profesional con Docker, pero lo utilice en proyectos"
+		)).doesNotContain("Docker");
+	}
+
+	@Test
 	void isAccentInsensitiveAndDoesNotReturnDuplicates() {
 		assertThat(extractor.extractCanonicalNames(
 				"Conciliacion bancaria y conciliaciones bancarias con emision de facturas y facturacion."

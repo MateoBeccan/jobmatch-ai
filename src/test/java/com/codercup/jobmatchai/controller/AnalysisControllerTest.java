@@ -39,6 +39,7 @@ import com.codercup.jobmatchai.scoring.RequirementCriticality;
 import com.codercup.jobmatchai.scoring.RequirementStatus;
 import com.codercup.jobmatchai.service.AnalysisService;
 import com.codercup.jobmatchai.service.AnalysisHistoryService;
+import com.codercup.jobmatchai.service.AnalysisEvidenceValidator;
 import com.codercup.jobmatchai.service.CvContentValidator;
 import com.codercup.jobmatchai.service.GeminiService;
 import com.codercup.jobmatchai.service.PdfService;
@@ -47,6 +48,7 @@ import com.codercup.jobmatchai.service.ProfessionalKnowledgeExtractor;
 @WebMvcTest(value = AnalysisController.class, properties = "rate-limit.per-minute=100")
 @Import({
 		AnalysisService.class,
+		AnalysisEvidenceValidator.class,
 		PdfService.class,
 		ProfessionalKnowledgeExtractor.class,
 		MatchScoreCalculator.class,
@@ -85,20 +87,20 @@ class AnalysisControllerTest {
 				"cvFile",
 				"cv.pdf",
 				"application/pdf",
-				createPdfWithText("Java developer with Spring Boot experience")
+				createPdfWithText("Java developer with Spring Boot, SQL and REST APIs experience")
 		);
 		MockMultipartFile jobDescription = new MockMultipartFile(
 				"jobDescription",
 				"",
 				"text/plain",
-				"Java developer role".getBytes()
+				"Java developer role requiring Java, Spring Boot and Docker".getBytes()
 		);
 
 		mockMvc.perform(multipart("/api/analyze")
 						.file(cvFile)
 						.file(jobDescription))
 				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.matchPercentage").value(83))
+				.andExpect(jsonPath("$.matchPercentage").value(67))
 				.andExpect(jsonPath("$.matchingSkills[0]").value("Java"))
 				.andExpect(jsonPath("$.matchingSkills[1]").value("Spring Boot"))
 				.andExpect(jsonPath("$.missingSkills[0]").value("Docker"))
@@ -109,8 +111,8 @@ class AnalysisControllerTest {
 				.andExpect(jsonPath("$.requirements[0].name").value("Java"))
 				.andExpect(jsonPath("$.requirements[0].status").value("match"))
 				.andExpect(jsonPath("$.requirements[2].name").value("Docker"))
-				.andExpect(jsonPath("$.requirements[2].status").value("partial"))
-				.andExpect(jsonPath("$.breakdown.mandatoryTechnical").value(83))
+				.andExpect(jsonPath("$.requirements[2].status").value("missing"))
+				.andExpect(jsonPath("$.breakdown.mandatoryTechnical").value(67))
 				.andExpect(jsonPath("$.breakdown.experienceSeniority").doesNotExist())
 				.andExpect(jsonPath("$.criticalMissingRequirements").isArray())
 				.andExpect(jsonPath("$.criticalMissingRequirements.length()").value(0))
@@ -122,7 +124,7 @@ class AnalysisControllerTest {
 				.andExpect(jsonPath("$.jobSearchProfile.keywords[0]").value("Java"))
 				.andExpect(jsonPath("$.jobSearchProfile.keywords[1]").value("Spring Boot"))
 				.andExpect(jsonPath("$.jobSearchProfile.keywords[2]").value("SQL"))
-				.andExpect(jsonPath("$.jobSearchProfile.keywords[3]").value("REST API"));
+				.andExpect(jsonPath("$.jobSearchProfile.keywords[3]").value("REST APIs"));
 	}
 
 	@Test
@@ -132,7 +134,7 @@ class AnalysisControllerTest {
 				"cvFile",
 				"cv.pdf",
 				"application/pdf",
-				createPdfWithText("Java developer with Spring Boot experience")
+				createPdfWithText("Java developer with Spring Boot, SQL, REST APIs and Git experience")
 		);
 		MockMultipartFile jobDescription = new MockMultipartFile(
 				"jobDescription",
@@ -235,7 +237,7 @@ class AnalysisControllerTest {
 				"cvFile",
 				"cv.pdf",
 				"application/pdf",
-				createPdfWithText("Java developer with Spring Boot experience")
+				createPdfWithText("Java developer with Spring Boot, SQL, REST APIs and Git experience")
 		);
 		MockMultipartFile jobDescription = new MockMultipartFile(
 				"jobDescription",
@@ -376,7 +378,7 @@ class AnalysisControllerTest {
 				"cvFile",
 				"cv.pdf",
 				"application/pdf",
-				createPdfWithText("Java developer with Spring Boot experience")
+				createPdfWithText("Java developer with Spring Boot, SQL, REST APIs and Git experience")
 		);
 		MockMultipartFile jobImage = new MockMultipartFile(
 				"jobImage",
@@ -389,7 +391,7 @@ class AnalysisControllerTest {
 						.file(cvFile)
 						.file(jobImage))
 				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.matchPercentage").value(86))
+				.andExpect(jsonPath("$.matchPercentage").value(71))
 				.andExpect(jsonPath("$.matchingSkills[0]").value("Java"))
 				.andExpect(jsonPath("$.matchingSkills[1]").value("Spring Boot"))
 				.andExpect(jsonPath("$.missingSkills[0]").value("Docker"))

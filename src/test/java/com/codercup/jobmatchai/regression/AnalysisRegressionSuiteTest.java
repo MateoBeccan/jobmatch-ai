@@ -138,7 +138,7 @@ class AnalysisRegressionSuiteTest {
 						100,
 						List.of(),
 						null,
-						List.of("Vue"),
+						List.of("Vue.js"),
 						List.of(),
 						List.of(),
 						Map.of("React or Vue", "match")
@@ -189,7 +189,7 @@ class AnalysisRegressionSuiteTest {
 				new RegressionCase(
 						"REG-006",
 						"MySQL vs PostgreSQL or equivalent relational database",
-						"CV con MySQL y modelado relacional.",
+						"CV con MySQL, SQL y modelado relacional.",
 						"Backend role requiring PostgreSQL or equivalent relational database.",
 						result(
 								List.of(
@@ -225,7 +225,7 @@ class AnalysisRegressionSuiteTest {
 						50,
 						List.of(),
 						null,
-						List.of("Vue"),
+						List.of("Vue.js"),
 						List.of("React"),
 						List.of(),
 						Map.of("React", "missing", "Vue", "match")
