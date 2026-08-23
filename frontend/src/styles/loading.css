@@ -128,9 +128,10 @@
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0;
-  width: 100%;
-  margin: 0 0 26px;
-  padding: 12px;
+  box-sizing: border-box;
+  width: min(100%, 488px);
+  margin: 0 auto 26px;
+  padding: 12px 14px;
   border: 1px solid rgba(112, 171, 239, 0.16);
   border-radius: 16px;
   background: rgba(112, 171, 239, 0.055);
@@ -138,8 +139,11 @@
 
 .loading-shell .analysis-stepper li {
   display: grid;
+  grid-template-rows: 30px 13px 16px;
   justify-items: center;
-  gap: 5px;
+  align-items: start;
+  min-width: 0;
+  gap: 4px;
   padding: 0;
   border: 0;
   background: transparent;
@@ -147,10 +151,28 @@
   text-align: center;
 }
 
+.loading-shell .analysis-stepper li.current {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
 .loading-shell .analysis-stepper .stepper-status {
   width: 30px;
   height: 30px;
   flex-basis: 30px;
+}
+
+.loading-shell .analysis-stepper .stepper-index,
+.loading-shell .analysis-stepper .stepper-label {
+  display: block;
+  width: 100%;
+  line-height: 1.15;
+  text-align: center;
+}
+
+.loading-shell .analysis-stepper .stepper-label {
+  overflow-wrap: anywhere;
 }
 
 .loading-shell .loading-kicker {
@@ -299,6 +321,7 @@
     padding: 10px 8px;
   }
   .loading-shell .analysis-stepper li {
+    grid-template-rows: 27px 12px 15px;
     gap: 4px;
     font-size: 10px;
   }
