@@ -47,7 +47,13 @@ class AnalysisServiceTest {
 				.containsExactly("Java", "Spring Boot", "SQL", "TypeScript", "5 anos de experiencia", "Docker", "AWS", "Git");
 		assertThat(response.requirements()).extracting("status")
 				.containsExactly("match", "match", "match", "missing", "missing", "match", "missing", "match");
+		assertThat(response.requirements()).extracting("criticality")
+				.containsExactly("normal", "normal", "normal", "normal", "normal", "normal", "normal", "normal");
 		assertThat(response.breakdown()).isNotNull();
+		assertThat(response.scoreExplanation()).isNotNull();
+		assertThat(response.scoreExplanation().basePercentage()).isEqualTo(60);
+		assertThat(response.scoreExplanation().finalPercentage()).isEqualTo(60);
+		assertThat(response.scoreExplanation().capReason()).isEqualTo("none");
 		assertThat(response.criticalMissingRequirements()).isEmpty();
 		assertThat(response.experienceGap()).isNotNull();
 		assertThat(response.experienceGap().requirement()).isEqualTo("5 anos de experiencia");
@@ -93,8 +99,65 @@ class AnalysisServiceTest {
 		assertThat(imageResponse.matchPercentage()).isEqualTo(60);
 		assertThat(textResponse.jobSearchProfile().role()).isEqualTo("Java Backend Developer");
 		assertThat(imageResponse.jobSearchProfile().role()).isEqualTo("Java Backend Developer");
+		assertThat(imageResponse.requirements().get(0).explainability().jobCatalogEvidenceDetected()).isNull();
 		assertThat(geminiService.textCalls()).isEqualTo(1);
 		assertThat(geminiService.imageCalls()).isEqualTo(1);
+	}
+
+	@Test
+	void evidenceValidationCorrectionsExposeFinalSafeEvidence() {
+		AnalysisService analysisService = new AnalysisService(
+				new ScenarioPdfService("Perfil con Java y SQL, sin Docker."),
+				new FakeGeminiService(resultWithRequirements(List.of(
+						assessment(
+								"Docker",
+								RequirementCategory.MANDATORY_TECHNICAL,
+								RequirementCriticality.CRITICAL,
+								RequirementStatus.MATCH,
+								"El CV demuestra Docker."
+						)
+				))),
+				new MatchScoreCalculator()
+		);
+
+		AnalysisResponse response = analysisService.analyze(validCvFile(), "Oferta backend con Java y Docker.", null);
+
+		assertThat(response.requirements()).hasSize(1);
+		assertThat(response.requirements().get(0).status()).isEqualTo("missing");
+		assertThat(response.requirements().get(0).criticality()).isEqualTo("critical");
+		assertThat(response.requirements().get(0).evidence())
+				.isEqualTo("No se detecto una mencion de Docker en el texto extraido del CV.");
+		assertThat(response.requirements().get(0).explainability().statusAdjusted()).isTrue();
+		assertThat(response.requirements().get(0).explainability().originalStatus()).isEqualTo("match");
+		assertThat(response.requirements().get(0).explainability().cvCatalogEvidenceDetected()).isFalse();
+		assertThat(response.requirements().get(0).explainability().jobCatalogEvidenceDetected()).isTrue();
+		assertThat(response.criticalMissingRequirements().get(0).evidence())
+				.isEqualTo(response.requirements().get(0).evidence());
+	}
+
+	@Test
+	void evidenceValidationMissingToPartialDoesNotReturnStaleAbsentEvidence() {
+		AnalysisService analysisService = new AnalysisService(
+				new ScenarioPdfService("Perfil administrativo con Microsoft Excel y reportes."),
+				new FakeGeminiService(resultWithRequirements(List.of(
+						assessment(
+								"Microsoft Excel",
+								RequirementCategory.MANDATORY_TECHNICAL,
+								RequirementStatus.MISSING,
+								"Excel no aparece en el CV."
+						)
+				))),
+				new MatchScoreCalculator()
+		);
+
+		AnalysisResponse response = analysisService.analyze(validCvFile(), "Oferta administrativa con Microsoft Excel.", null);
+
+		assertThat(response.requirements().get(0).status()).isEqualTo("partial");
+		assertThat(response.requirements().get(0).evidence())
+				.contains("Se detecto Microsoft Excel en el CV")
+				.doesNotContain("no aparece");
+		assertThat(response.requirements().get(0).explainability().statusAdjusted()).isTrue();
+		assertThat(response.requirements().get(0).explainability().originalStatus()).isEqualTo("missing");
 	}
 
 	@Test
@@ -237,7 +300,7 @@ class AnalysisServiceTest {
 		assertThat(response.experienceGap().status()).isEqualTo("missing");
 		assertThat(response.experienceGap().critical()).isTrue();
 		assertThat(response.experienceGap().summary())
-				.isEqualTo("El CV no demuestra 5 anos de experiencia profesional.");
+				.isEqualTo("El requisito de experiencia no quedo suficientemente respaldado por la informacion del CV analizada semanticamente.");
 	}
 
 	@Test
@@ -398,6 +461,15 @@ class AnalysisServiceTest {
 	private RequirementAssessment assessment(
 			String name,
 			RequirementCategory category,
+			RequirementStatus status,
+			String evidence
+	) {
+		return assessment(name, category, RequirementCriticality.NORMAL, status, evidence);
+	}
+
+	private RequirementAssessment assessment(
+			String name,
+			RequirementCategory category,
 			RequirementCriticality criticality,
 			RequirementStatus status,
 			String evidence
@@ -442,6 +514,27 @@ class AnalysisServiceTest {
 					Habilidades técnicas: Java, Spring Boot, SQL, Docker y Git.
 					Proyectos: API REST para gestión de tareas.
 					""";
+		}
+	}
+
+	private static class ScenarioPdfService extends PdfService {
+
+		private final String text;
+
+		ScenarioPdfService(String text) {
+			this.text = text;
+		}
+
+		@Override
+		public String extractText(MultipartFile file) {
+			return """
+					Perfil profesional
+					%s
+					Experiencia laboral: participacion en proyectos y tareas profesionales relacionadas.
+					Habilidades tecnicas: herramientas, tecnologias y conocimientos declarados en el perfil.
+					Proyectos: desarrollo de soluciones, documentacion y colaboracion con equipos.
+					Educacion: Ingenieria en Sistemas.
+					""".formatted(text);
 		}
 	}
 

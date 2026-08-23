@@ -7,6 +7,7 @@ import com.codercup.jobmatchai.dto.JobSearchProfileResponse;
 import com.codercup.jobmatchai.dto.RequirementResponse;
 import com.codercup.jobmatchai.dto.ScoreBreakdownResponse;
 import com.codercup.jobmatchai.dto.internal.GeminiAnalysisResult;
+import com.codercup.jobmatchai.service.AnalysisExplainabilityService.RequirementExplanation;
 import com.codercup.jobmatchai.exception.InvalidAnalysisRequestException;
 import com.codercup.jobmatchai.scoring.MatchScoreCalculator;
 import com.codercup.jobmatchai.scoring.MatchScoreResult;
@@ -44,6 +45,7 @@ public class AnalysisService {
 	private final MatchScoreCalculator matchScoreCalculator;
 	private final ProfessionalKnowledgeExtractor professionalKnowledgeExtractor;
 	private final AnalysisEvidenceValidator analysisEvidenceValidator;
+	private final AnalysisExplainabilityService analysisExplainabilityService;
 	private final int maxJobDescriptionLength;
 
 	public AnalysisService(PdfService pdfService, GeminiService geminiService, MatchScoreCalculator matchScoreCalculator) {
@@ -54,6 +56,7 @@ public class AnalysisService {
 				matchScoreCalculator,
 				new ProfessionalKnowledgeExtractor(),
 				new AnalysisEvidenceValidator(),
+				new AnalysisExplainabilityService(),
 				5000
 		);
 	}
@@ -66,6 +69,7 @@ public class AnalysisService {
 			MatchScoreCalculator matchScoreCalculator,
 			ProfessionalKnowledgeExtractor professionalKnowledgeExtractor,
 			AnalysisEvidenceValidator analysisEvidenceValidator,
+			AnalysisExplainabilityService analysisExplainabilityService,
 			@org.springframework.beans.factory.annotation.Value("${analysis.max-description-length:5000}") int maxJobDescriptionLength
 	) {
 		this.pdfService = pdfService;
@@ -74,7 +78,29 @@ public class AnalysisService {
 		this.matchScoreCalculator = matchScoreCalculator;
 		this.professionalKnowledgeExtractor = professionalKnowledgeExtractor;
 		this.analysisEvidenceValidator = analysisEvidenceValidator;
+		this.analysisExplainabilityService = analysisExplainabilityService;
 		this.maxJobDescriptionLength = maxJobDescriptionLength;
+	}
+
+	public AnalysisService(
+			PdfService pdfService,
+			CvContentValidator cvContentValidator,
+			GeminiService geminiService,
+			MatchScoreCalculator matchScoreCalculator,
+			ProfessionalKnowledgeExtractor professionalKnowledgeExtractor,
+			AnalysisEvidenceValidator analysisEvidenceValidator,
+			int maxJobDescriptionLength
+	) {
+		this(
+				pdfService,
+				cvContentValidator,
+				geminiService,
+				matchScoreCalculator,
+				professionalKnowledgeExtractor,
+				analysisEvidenceValidator,
+				new AnalysisExplainabilityService(),
+				maxJobDescriptionLength
+		);
 	}
 
 	AnalysisService(
@@ -91,6 +117,7 @@ public class AnalysisService {
 				matchScoreCalculator,
 				new ProfessionalKnowledgeExtractor(),
 				new AnalysisEvidenceValidator(),
+				new AnalysisExplainabilityService(),
 				maxJobDescriptionLength
 		);
 	}
@@ -119,7 +146,13 @@ public class AnalysisService {
 				jobKnowledge,
 				hasText(jobDescription)
 		);
-		return buildAnalysisResponse(validatedResult);
+		return buildAnalysisResponse(
+				aiResult,
+				validatedResult,
+				cvKnowledge,
+				jobKnowledge,
+				hasText(jobDescription)
+		);
 	}
 
 	public AnalysisResponse analyze(MultipartFile cvFile, String jobDescription) {
@@ -199,28 +232,37 @@ public class AnalysisService {
 				.toList();
 	}
 
-	private AnalysisResponse buildAnalysisResponse(GeminiAnalysisResult aiResult) {
-		MatchScoreResult score = matchScoreCalculator.calculate(aiResult.requirements());
+	private AnalysisResponse buildAnalysisResponse(
+			GeminiAnalysisResult originalResult,
+			GeminiAnalysisResult validatedResult,
+			List<ProfessionalKnowledgeEntry> cvKnowledge,
+			List<ProfessionalKnowledgeEntry> jobKnowledge,
+			boolean hasTextualJobEvidence
+	) {
+		List<RequirementExplanation> requirementExplanations = analysisExplainabilityService.explainRequirements(
+				originalResult,
+				validatedResult,
+				cvKnowledge,
+				jobKnowledge,
+				hasTextualJobEvidence
+		);
+		List<RequirementResponse> requirementResponses = requirementExplanations.stream()
+				.map(this::toRequirementResponse)
+				.toList();
+		MatchScoreResult score = matchScoreCalculator.calculate(validatedResult.requirements());
 		List<CriticalRequirementGapResponse> criticalMissingRequirements =
-				extractCriticalMissingRequirements(aiResult.requirements());
-		ExperienceGapResponse experienceGap = determineExperienceGap(aiResult.requirements());
+				extractCriticalMissingRequirements(requirementExplanations);
+		ExperienceGapResponse experienceGap = determineExperienceGap(requirementExplanations);
 		return new AnalysisResponse(
 				score.matchPercentage(),
-				aiResult.matchingSkills(),
-				aiResult.missingSkills(),
+				validatedResult.matchingSkills(),
+				validatedResult.missingSkills(),
 				criticalMissingRequirements,
 				experienceGap,
 				buildWarnings(score, criticalMissingRequirements, experienceGap),
-				aiResult.recommendations(),
-				aiResult.interviewQuestions(),
-				aiResult.requirements().stream()
-						.map(requirement -> new RequirementResponse(
-								requirement.name(),
-								formatCategory(requirement.category()),
-								requirement.status().name().toLowerCase(Locale.ROOT),
-								requirement.evidence()
-						))
-						.toList(),
+				validatedResult.recommendations(),
+				validatedResult.interviewQuestions(),
+				requirementResponses,
 				new ScoreBreakdownResponse(
 						score.breakdown().mandatoryTechnical(),
 						score.breakdown().experienceSeniority(),
@@ -228,45 +270,68 @@ public class AnalysisService {
 						score.breakdown().complementary()
 				),
 				new JobSearchProfileResponse(
-						aiResult.jobSearchProfile().role(),
-						aiResult.jobSearchProfile().seniority(),
-						aiResult.jobSearchProfile().keywords()
-				)
+						validatedResult.jobSearchProfile().role(),
+						validatedResult.jobSearchProfile().seniority(),
+						validatedResult.jobSearchProfile().keywords()
+				),
+				analysisExplainabilityService.explainScore(score)
+		);
+	}
+
+	private RequirementResponse toRequirementResponse(RequirementExplanation explanation) {
+		RequirementAssessment requirement = explanation.requirement();
+		return new RequirementResponse(
+				requirement.name(),
+				formatCategory(requirement.category()),
+				requirement.criticality().name().toLowerCase(Locale.ROOT),
+				requirement.status().name().toLowerCase(Locale.ROOT),
+				explanation.finalEvidence(),
+				explanation.explainability()
 		);
 	}
 
 	private List<CriticalRequirementGapResponse> extractCriticalMissingRequirements(
-			List<RequirementAssessment> requirements
+			List<RequirementExplanation> requirementExplanations
 	) {
-		return requirements.stream()
+		return requirementExplanations.stream()
+				.map(RequirementExplanation::requirement)
 				.filter(requirement -> requirement.criticality() == RequirementCriticality.CRITICAL)
 				.filter(requirement -> requirement.status() == RequirementStatus.MISSING)
 				.map(requirement -> new CriticalRequirementGapResponse(
 						requirement.name(),
 						formatCategory(requirement.category()),
-						requirement.evidence()
+						finalEvidenceFor(requirementExplanations, requirement)
 				))
 				.toList();
 	}
 
-	private ExperienceGapResponse determineExperienceGap(List<RequirementAssessment> requirements) {
-		Optional<RequirementAssessment> experienceRequirement = requirements.stream()
-				.filter(requirement -> requirement.category() == RequirementCategory.EXPERIENCE_SENIORITY)
-				.filter(requirement -> requirement.status() == RequirementStatus.MISSING
-						|| requirement.status() == RequirementStatus.PARTIAL)
+	private String finalEvidenceFor(List<RequirementExplanation> explanations, RequirementAssessment requirement) {
+		return explanations.stream()
+				.filter(explanation -> explanation.requirement() == requirement)
+				.map(RequirementExplanation::finalEvidence)
+				.findFirst()
+				.orElse(requirement.evidence());
+	}
+
+	private ExperienceGapResponse determineExperienceGap(List<RequirementExplanation> requirementExplanations) {
+		Optional<RequirementExplanation> experienceRequirement = requirementExplanations.stream()
+				.filter(explanation -> explanation.requirement().category() == RequirementCategory.EXPERIENCE_SENIORITY)
+				.filter(explanation -> explanation.requirement().status() == RequirementStatus.MISSING
+						|| explanation.requirement().status() == RequirementStatus.PARTIAL)
 				.min(Comparator.comparingInt(this::experienceGapPriority));
 
 		return experienceRequirement
-				.map(requirement -> new ExperienceGapResponse(
-						requirement.name(),
-						requirement.status().name().toLowerCase(Locale.ROOT),
-						requirement.criticality() == RequirementCriticality.CRITICAL,
-						buildExperienceGapSummary(requirement)
+				.map(explanation -> new ExperienceGapResponse(
+						explanation.requirement().name(),
+						explanation.requirement().status().name().toLowerCase(Locale.ROOT),
+						explanation.requirement().criticality() == RequirementCriticality.CRITICAL,
+						explanation.finalEvidence()
 				))
 				.orElse(null);
 	}
 
-	private int experienceGapPriority(RequirementAssessment requirement) {
+	private int experienceGapPriority(RequirementExplanation explanation) {
+		RequirementAssessment requirement = explanation.requirement();
 		if (requirement.criticality() == RequirementCriticality.CRITICAL
 				&& requirement.status() == RequirementStatus.MISSING) {
 			return 0;
@@ -279,16 +344,6 @@ public class AnalysisService {
 			return 2;
 		}
 		return 3;
-	}
-
-	private String buildExperienceGapSummary(RequirementAssessment requirement) {
-		if (requirement.evidence() != null && !requirement.evidence().isBlank()) {
-			return requirement.evidence();
-		}
-		if (requirement.status() == RequirementStatus.PARTIAL) {
-			return "La experiencia requerida esta parcialmente respaldada por el CV.";
-		}
-		return "La experiencia requerida no esta respaldada por el CV.";
 	}
 
 	private List<String> buildWarnings(
