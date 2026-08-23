@@ -100,4 +100,20 @@ class ProfessionalKnowledgeCatalogTest {
 		assertThat(SkillNormalizer.canonicalSkills()).doesNotContain("Microsoft Excel");
 		assertThat(SkillNormalizer.isCanonicalSkill("ms excel")).isFalse();
 	}
+
+	@Test
+	void resolvesAtomicKnowledgeOnlyByExactCanonicalOrAlias() {
+		assertThat(ProfessionalKnowledgeCatalog.findByCanonicalOrAlias("Docker"))
+				.get()
+				.extracting(ProfessionalKnowledgeEntry::canonicalName)
+				.isEqualTo("Docker");
+		assertThat(ProfessionalKnowledgeCatalog.findByCanonicalOrAlias("ms excel"))
+				.get()
+				.extracting(ProfessionalKnowledgeEntry::canonicalName)
+				.isEqualTo("Microsoft Excel");
+		assertThat(ProfessionalKnowledgeCatalog.findByCanonicalOrAlias("3+ years Docker")).isEmpty();
+		assertThat(ProfessionalKnowledgeCatalog.findByCanonicalOrAlias("Java and Spring Boot")).isEmpty();
+		assertThat(ProfessionalKnowledgeCatalog.findByCanonicalOrAlias("Advanced Excel with professional experience"))
+				.isEmpty();
+	}
 }

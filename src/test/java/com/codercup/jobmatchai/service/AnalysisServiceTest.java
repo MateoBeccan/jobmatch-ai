@@ -32,7 +32,7 @@ class AnalysisServiceTest {
 				new MatchScoreCalculator()
 		);
 
-		AnalysisResponse response = analysisService.analyze(validCvFile(), "Java developer role", null);
+		AnalysisResponse response = analysisService.analyze(validCvFile(), "Java developer role requiring Java, Spring Boot, SQL, TypeScript, AWS, Docker and Git", null);
 
 		assertThat(response.matchPercentage()).isEqualTo(60);
 		assertThat(response.matchingSkills()).containsExactly("Java", "Spring Boot", "SQL", "Docker", "Git");
@@ -56,7 +56,7 @@ class AnalysisServiceTest {
 		assertThat(response.jobSearchProfile()).isNotNull();
 		assertThat(response.jobSearchProfile().role()).isEqualTo("Java Backend Developer");
 		assertThat(response.jobSearchProfile().seniority()).isEqualTo(JobSeniority.JUNIOR);
-		assertThat(response.jobSearchProfile().keywords()).containsExactly("Java", "Spring Boot", "SQL", "REST API");
+		assertThat(response.jobSearchProfile().keywords()).containsExactly("Java", "Spring Boot", "SQL", "REST APIs");
 	}
 
 	@Test
@@ -67,13 +67,13 @@ class AnalysisServiceTest {
 				new MatchScoreCalculator()
 		);
 
-		AnalysisResponse firstResponse = analysisService.analyze(validCvFile(), "Java developer role", null);
+		AnalysisResponse firstResponse = analysisService.analyze(validCvFile(), "Java developer role requiring Java, Spring Boot, SQL, TypeScript, AWS, Docker and Git", null);
 
-		assertThat(analysisService.analyze(validCvFile(), "Java developer role", null).matchPercentage())
+		assertThat(analysisService.analyze(validCvFile(), "Java developer role requiring Java, Spring Boot, SQL, TypeScript, AWS, Docker and Git", null).matchPercentage())
 				.isEqualTo(firstResponse.matchPercentage());
-		assertThat(analysisService.analyze(validCvFile(), "Java developer role", null).matchPercentage())
+		assertThat(analysisService.analyze(validCvFile(), "Java developer role requiring Java, Spring Boot, SQL, TypeScript, AWS, Docker and Git", null).matchPercentage())
 				.isEqualTo(firstResponse.matchPercentage());
-		assertThat(analysisService.analyze(validCvFile(), "Java developer role", null).matchPercentage())
+		assertThat(analysisService.analyze(validCvFile(), "Java developer role requiring Java, Spring Boot, SQL, TypeScript, AWS, Docker and Git", null).matchPercentage())
 				.isEqualTo(firstResponse.matchPercentage());
 	}
 
@@ -86,7 +86,7 @@ class AnalysisServiceTest {
 				new MatchScoreCalculator()
 		);
 
-		AnalysisResponse textResponse = analysisService.analyze(validCvFile(), "Java developer role", null);
+		AnalysisResponse textResponse = analysisService.analyze(validCvFile(), "Java developer role requiring Java, Spring Boot, SQL, TypeScript, AWS, Docker and Git", null);
 		AnalysisResponse imageResponse = analysisService.analyze(validCvFile(), null, validJobImage());
 
 		assertThat(textResponse.matchPercentage()).isEqualTo(60);
@@ -133,7 +133,7 @@ class AnalysisServiceTest {
 				5000
 		);
 
-		AnalysisResponse response = analysisService.analyze(validCvFile(), "Java developer role", null);
+		AnalysisResponse response = analysisService.analyze(validCvFile(), "Java developer role requiring Java, Spring Boot, SQL, TypeScript, AWS, Docker and Git", null);
 
 		assertThat(validator.validatedText()).contains("Perfil profesional");
 		assertThat(geminiService.textCalls()).isEqualTo(1);
@@ -290,8 +290,8 @@ class AnalysisServiceTest {
 	@Test
 	void criticalCapWarningOnlyAppearsWhenScoreWasActuallyLimited() {
 		AnalysisResponse response = analyze(List.of(
-				assessment("Java", RequirementCategory.MANDATORY_TECHNICAL, RequirementStatus.MISSING),
-				assessment("Spring Boot", RequirementCategory.MANDATORY_TECHNICAL, RequirementStatus.MISSING),
+				assessment("Legacy mandatory A", RequirementCategory.MANDATORY_TECHNICAL, RequirementStatus.MISSING),
+				assessment("Legacy mandatory B", RequirementCategory.MANDATORY_TECHNICAL, RequirementStatus.MISSING),
 				assessment(
 						"5+ anos de experiencia profesional",
 						RequirementCategory.EXPERIENCE_SENIORITY,
@@ -319,7 +319,7 @@ class AnalysisServiceTest {
 				5000
 		);
 
-		assertThatThrownBy(() -> analysisService.analyze(validCvFile(), "Java developer role", null))
+		assertThatThrownBy(() -> analysisService.analyze(validCvFile(), "Java developer role requiring Java, Spring Boot, SQL, TypeScript, AWS, Docker and Git", null))
 				.isInstanceOf(InvalidCvContentException.class);
 		assertThat(validator.validatedText()).contains("Perfil profesional");
 		assertThat(geminiService.textCalls()).isZero();
@@ -360,7 +360,7 @@ class AnalysisServiceTest {
 				new FakeGeminiService(resultWithRequirements(requirements)),
 				new MatchScoreCalculator()
 		);
-		return analysisService.analyze(validCvFile(), "Java developer role", null);
+		return analysisService.analyze(validCvFile(), "Java developer role requiring Java, Spring Boot, SQL, TypeScript, AWS, Docker and Git", null);
 	}
 
 	private GeminiAnalysisResult resultWithRequirements(List<RequirementAssessment> requirements) {

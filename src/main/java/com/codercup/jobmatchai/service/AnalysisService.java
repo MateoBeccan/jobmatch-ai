@@ -43,10 +43,19 @@ public class AnalysisService {
 	private final GeminiService geminiService;
 	private final MatchScoreCalculator matchScoreCalculator;
 	private final ProfessionalKnowledgeExtractor professionalKnowledgeExtractor;
+	private final AnalysisEvidenceValidator analysisEvidenceValidator;
 	private final int maxJobDescriptionLength;
 
 	public AnalysisService(PdfService pdfService, GeminiService geminiService, MatchScoreCalculator matchScoreCalculator) {
-		this(pdfService, new CvContentValidator(), geminiService, matchScoreCalculator, new ProfessionalKnowledgeExtractor(), 5000);
+		this(
+				pdfService,
+				new CvContentValidator(),
+				geminiService,
+				matchScoreCalculator,
+				new ProfessionalKnowledgeExtractor(),
+				new AnalysisEvidenceValidator(),
+				5000
+		);
 	}
 
 	@org.springframework.beans.factory.annotation.Autowired
@@ -56,6 +65,7 @@ public class AnalysisService {
 			GeminiService geminiService,
 			MatchScoreCalculator matchScoreCalculator,
 			ProfessionalKnowledgeExtractor professionalKnowledgeExtractor,
+			AnalysisEvidenceValidator analysisEvidenceValidator,
 			@org.springframework.beans.factory.annotation.Value("${analysis.max-description-length:5000}") int maxJobDescriptionLength
 	) {
 		this.pdfService = pdfService;
@@ -63,6 +73,7 @@ public class AnalysisService {
 		this.geminiService = geminiService;
 		this.matchScoreCalculator = matchScoreCalculator;
 		this.professionalKnowledgeExtractor = professionalKnowledgeExtractor;
+		this.analysisEvidenceValidator = analysisEvidenceValidator;
 		this.maxJobDescriptionLength = maxJobDescriptionLength;
 	}
 
@@ -73,25 +84,42 @@ public class AnalysisService {
 			MatchScoreCalculator matchScoreCalculator,
 			int maxJobDescriptionLength
 	) {
-		this(pdfService, cvContentValidator, geminiService, matchScoreCalculator, new ProfessionalKnowledgeExtractor(), maxJobDescriptionLength);
+		this(
+				pdfService,
+				cvContentValidator,
+				geminiService,
+				matchScoreCalculator,
+				new ProfessionalKnowledgeExtractor(),
+				new AnalysisEvidenceValidator(),
+				maxJobDescriptionLength
+		);
 	}
 
 	public AnalysisResponse analyze(MultipartFile cvFile, String jobDescription, MultipartFile jobImage) {
 		validateRequest(cvFile, jobDescription, jobImage);
 		String cvText = pdfService.extractText(cvFile);
 		cvContentValidator.validate(cvText);
-		List<String> cvKnowledgeHints = professionalKnowledgeExtractor.extractCanonicalNames(cvText);
+		List<ProfessionalKnowledgeEntry> cvKnowledge = professionalKnowledgeExtractor.extract(cvText);
+		List<ProfessionalKnowledgeEntry> jobKnowledge = hasText(jobDescription)
+				? professionalKnowledgeExtractor.extract(jobDescription)
+				: List.of();
 
 		GeminiAnalysisResult aiResult = hasText(jobDescription)
 				? geminiService.analyze(
 						cvText,
 						jobDescription,
-						cvKnowledgeHints,
-						professionalKnowledgeExtractor.extractCanonicalNames(jobDescription)
+						canonicalNames(cvKnowledge),
+						canonicalNames(jobKnowledge)
 				)
-				: geminiService.analyze(cvText, jobImage, cvKnowledgeHints);
+				: geminiService.analyze(cvText, jobImage, canonicalNames(cvKnowledge));
 
-		return buildAnalysisResponse(aiResult);
+		GeminiAnalysisResult validatedResult = analysisEvidenceValidator.validate(
+				aiResult,
+				cvKnowledge,
+				jobKnowledge,
+				hasText(jobDescription)
+		);
+		return buildAnalysisResponse(validatedResult);
 	}
 
 	public AnalysisResponse analyze(MultipartFile cvFile, String jobDescription) {
@@ -163,6 +191,12 @@ public class AnalysisService {
 
 	private boolean hasText(String value) {
 		return value != null && !value.isBlank();
+	}
+
+	private List<String> canonicalNames(List<ProfessionalKnowledgeEntry> entries) {
+		return entries.stream()
+				.map(ProfessionalKnowledgeEntry::canonicalName)
+				.toList();
 	}
 
 	private AnalysisResponse buildAnalysisResponse(GeminiAnalysisResult aiResult) {
