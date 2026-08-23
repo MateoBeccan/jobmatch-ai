@@ -15,10 +15,15 @@ describe('CareerMultiversePage', () => {
   it('renders a Career-specific loading state', () => {
     const markup = render({ isLoading: true })
 
+    expect(markup).toContain('role="status"')
     expect(markup).toContain('Explorando caminos')
     expect(markup).toContain('Interpretando tu perfil')
     expect(markup).toContain('Contrastando senales del mercado')
-    expect(markup).not.toContain('%')
+    expect(markup).toContain('role="progressbar"')
+    expect(markup).toContain('aria-valuenow="24"')
+    expect(markup).toContain('career-loading-steps')
+    expect(markup).toContain('class="current"')
+    expect(markup).toContain('class="pending"')
   })
 
   it('renders retryable errors with a manual retry button', () => {

@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import type {
   CareerLearningPriority,
   CareerMarketConfidence,
@@ -29,6 +30,13 @@ type CareerMultiversePageProps = {
 }
 
 const PATH_ORDER: CareerPathType[] = ['NATURAL', 'EXPANSION', 'ALTERNATIVE']
+const CAREER_LOADING_STEPS = [
+  'Interpretando tu perfil',
+  'Explorando caminos',
+  'Contrastando senales del mercado',
+  'Preparando tu mapa profesional',
+]
+const CAREER_LOADING_PROGRESS = [24, 48, 74, 92]
 
 const PATH_LABELS: Record<CareerPathType, { label: string; title: string; description: string }> = {
   NATURAL: {
@@ -194,8 +202,20 @@ export function CareerMultiversePage({
 }
 
 function CareerLoading() {
+  const [activeStep, setActiveStep] = useState(0)
+  const progress = CAREER_LOADING_PROGRESS[activeStep]
+
+  useEffect(() => {
+    setActiveStep(0)
+    const timer = window.setInterval(() => {
+      setActiveStep((currentStep) => Math.min(currentStep + 1, CAREER_LOADING_STEPS.length - 1))
+    }, 2100)
+
+    return () => window.clearInterval(timer)
+  }, [])
+
   return (
-    <section className="career-loading" aria-live="polite" aria-busy="true">
+    <section className="career-loading" role="status" aria-live="polite" aria-busy="true">
       <div className="career-loading-orbit" aria-hidden="true">
         <span />
         <span />
@@ -203,7 +223,29 @@ function CareerLoading() {
       </div>
       <span className="career-kicker">Explorando caminos</span>
       <h1>Estamos contrastando tu perfil con distintas rutas profesionales.</h1>
-      <ul>
+      <p>Exploracion orientativa en curso. El avance visual acompana la espera mientras se genera tu mapa profesional.</p>
+      <div
+        className="career-loading-progress"
+        aria-label={`${progress}% completado`}
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={progress}
+      >
+        <span style={{ width: `${progress}%` }} />
+      </div>
+      <ul className="career-loading-steps">
+        {CAREER_LOADING_STEPS.map((step, index) => {
+          const status = index < activeStep ? 'done' : index === activeStep ? 'current' : 'pending'
+          return (
+            <li key={step} className={status}>
+              <span aria-hidden="true">{status === 'done' ? '✓' : status === 'current' ? '•' : '○'}</span>
+              {step}
+            </li>
+          )
+        })}
+      </ul>
+      <ul aria-hidden="true">
         <li><span aria-hidden="true">✓</span> Interpretando tu perfil</li>
         <li><span aria-hidden="true">○</span> Explorando caminos</li>
         <li><span aria-hidden="true">○</span> Contrastando senales del mercado</li>
