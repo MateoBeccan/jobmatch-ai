@@ -40,6 +40,7 @@ import com.codercup.jobmatchai.scoring.RequirementStatus;
 import com.codercup.jobmatchai.service.AnalysisService;
 import com.codercup.jobmatchai.service.AnalysisHistoryService;
 import com.codercup.jobmatchai.service.AnalysisEvidenceValidator;
+import com.codercup.jobmatchai.service.AnalysisExplainabilityService;
 import com.codercup.jobmatchai.service.CvContentValidator;
 import com.codercup.jobmatchai.service.GeminiService;
 import com.codercup.jobmatchai.service.PdfService;
@@ -49,6 +50,7 @@ import com.codercup.jobmatchai.service.ProfessionalKnowledgeExtractor;
 @Import({
 		AnalysisService.class,
 		AnalysisEvidenceValidator.class,
+		AnalysisExplainabilityService.class,
 		PdfService.class,
 		ProfessionalKnowledgeExtractor.class,
 		MatchScoreCalculator.class,

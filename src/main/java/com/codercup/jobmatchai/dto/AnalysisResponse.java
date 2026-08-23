@@ -13,7 +13,8 @@ public record AnalysisResponse(
 		List<String> interviewQuestions,
 		List<RequirementResponse> requirements,
 		ScoreBreakdownResponse breakdown,
-		JobSearchProfileResponse jobSearchProfile
+		JobSearchProfileResponse jobSearchProfile,
+		ScoreExplanationResponse scoreExplanation
 ) {
 
 	public AnalysisResponse {
@@ -24,6 +25,35 @@ public record AnalysisResponse(
 		recommendations = listOrEmpty(recommendations);
 		interviewQuestions = listOrEmpty(interviewQuestions);
 		requirements = listOrEmpty(requirements);
+	}
+
+	public AnalysisResponse(
+			Integer matchPercentage,
+			List<String> matchingSkills,
+			List<String> missingSkills,
+			List<CriticalRequirementGapResponse> criticalMissingRequirements,
+			ExperienceGapResponse experienceGap,
+			List<String> warnings,
+			List<String> recommendations,
+			List<String> interviewQuestions,
+			List<RequirementResponse> requirements,
+			ScoreBreakdownResponse breakdown,
+			JobSearchProfileResponse jobSearchProfile
+	) {
+		this(
+				matchPercentage,
+				matchingSkills,
+				missingSkills,
+				criticalMissingRequirements,
+				experienceGap,
+				warnings,
+				recommendations,
+				interviewQuestions,
+				requirements,
+				breakdown,
+				jobSearchProfile,
+				null
+		);
 	}
 
 	private static <T> List<T> listOrEmpty(List<T> values) {
