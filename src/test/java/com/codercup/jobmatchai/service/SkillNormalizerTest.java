@@ -71,6 +71,20 @@ class SkillNormalizerTest {
 	}
 
 	@Test
+	void keepsCurrentItRegressionAliases() {
+		assertThat(SkillNormalizer.canonicalizeSkill("nodejs")).isEqualTo("Node.js");
+		assertThat(SkillNormalizer.canonicalizeSkill("postgres")).isEqualTo("PostgreSQL");
+		assertThat(SkillNormalizer.canonicalizeSkill("vuejs")).isEqualTo("Vue.js");
+		assertThat(SkillNormalizer.canonicalizeSkill("springboot")).isEqualTo("Spring Boot");
+		assertThat(SkillNormalizer.canonicalizeSkill("k8s")).isEqualTo("Kubernetes");
+		assertThat(SkillNormalizer.canonicalizeSkill("csharp")).isEqualTo("C#");
+		assertThat(SkillNormalizer.canonicalizeSkill("dotnet")).isEqualTo(".NET");
+		assertThat(SkillNormalizer.canonicalizeSkill("amazon web services")).isEqualTo("AWS");
+		assertThat(SkillNormalizer.canonicalizeSkill("google cloud platform")).isEqualTo("GCP");
+		assertThat(SkillNormalizer.canonicalizeSkill("restful api")).isEqualTo("REST APIs");
+	}
+
+	@Test
 	void detectsCanonicalSkillsWithSafeBoundaries() {
 		assertThat(SkillNormalizer.containsCanonicalSkill("We use JavaScript and NoSQL", "Java")).isFalse();
 		assertThat(SkillNormalizer.containsCanonicalSkill("We use JavaScript and NoSQL", "SQL")).isFalse();

@@ -98,6 +98,30 @@ class AnalysisServiceTest {
 	}
 
 	@Test
+	void sendsDeterministicProfessionalKnowledgeHintsToGemini() throws IOException {
+		FakeGeminiService geminiService = new FakeGeminiService(integrationResult());
+		AnalysisService analysisService = new AnalysisService(
+				new FakePdfService(),
+				geminiService,
+				new MatchScoreCalculator()
+		);
+
+		analysisService.analyze(
+				validCvFile(),
+				"Oferta administrativa con Java, Microsoft Excel, conciliaciones bancarias y CRM.",
+				null
+		);
+		analysisService.analyze(validCvFile(), null, validJobImage());
+
+		assertThat(geminiService.lastCvKnowledgeHints())
+				.contains("Java", "Spring Boot", "SQL", "Docker", "Git", "REST APIs");
+		assertThat(geminiService.lastJobKnowledgeHints())
+				.contains("Java", "Microsoft Excel", "Bank Reconciliation", "CRM");
+		assertThat(geminiService.lastImageCvKnowledgeHints())
+				.contains("Java", "Spring Boot", "SQL", "Docker", "Git", "REST APIs");
+	}
+
+	@Test
 	void validCvIsExtractedValidatedAndSentToGemini() {
 		TrackingCvContentValidator validator = new TrackingCvContentValidator(false);
 		FakeGeminiService geminiService = new FakeGeminiService(integrationResult());
@@ -448,6 +472,9 @@ class AnalysisServiceTest {
 		private final GeminiAnalysisResult result;
 		private int textCalls;
 		private int imageCalls;
+		private List<String> lastCvKnowledgeHints = List.of();
+		private List<String> lastJobKnowledgeHints = List.of();
+		private List<String> lastImageCvKnowledgeHints = List.of();
 
 		FakeGeminiService(GeminiAnalysisResult result) {
 			super("test-key", "test-model", 30000, 2, 500);
@@ -462,6 +489,18 @@ class AnalysisServiceTest {
 			return imageCalls;
 		}
 
+		List<String> lastCvKnowledgeHints() {
+			return lastCvKnowledgeHints;
+		}
+
+		List<String> lastJobKnowledgeHints() {
+			return lastJobKnowledgeHints;
+		}
+
+		List<String> lastImageCvKnowledgeHints() {
+			return lastImageCvKnowledgeHints;
+		}
+
 		@Override
 		public GeminiAnalysisResult analyze(String cvText, String jobDescription) {
 			textCalls++;
@@ -469,8 +508,28 @@ class AnalysisServiceTest {
 		}
 
 		@Override
+		public GeminiAnalysisResult analyze(
+				String cvText,
+				String jobDescription,
+				List<String> cvKnowledgeHints,
+				List<String> jobKnowledgeHints
+		) {
+			textCalls++;
+			lastCvKnowledgeHints = cvKnowledgeHints;
+			lastJobKnowledgeHints = jobKnowledgeHints;
+			return result;
+		}
+
+		@Override
 		public GeminiAnalysisResult analyze(String cvText, MultipartFile jobImage) {
 			imageCalls++;
+			return result;
+		}
+
+		@Override
+		public GeminiAnalysisResult analyze(String cvText, MultipartFile jobImage, List<String> cvKnowledgeHints) {
+			imageCalls++;
+			lastImageCvKnowledgeHints = cvKnowledgeHints;
 			return result;
 		}
 	}

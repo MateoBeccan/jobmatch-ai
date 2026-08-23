@@ -42,11 +42,13 @@ import com.codercup.jobmatchai.service.AnalysisHistoryService;
 import com.codercup.jobmatchai.service.CvContentValidator;
 import com.codercup.jobmatchai.service.GeminiService;
 import com.codercup.jobmatchai.service.PdfService;
+import com.codercup.jobmatchai.service.ProfessionalKnowledgeExtractor;
 
 @WebMvcTest(value = AnalysisController.class, properties = "rate-limit.per-minute=100")
 @Import({
 		AnalysisService.class,
 		PdfService.class,
+		ProfessionalKnowledgeExtractor.class,
 		MatchScoreCalculator.class,
 		AnalysisControllerTest.TestHistoryConfiguration.class,
 		ApiExceptionHandler.class,
@@ -655,6 +657,16 @@ class AnalysisControllerTest {
 				}
 
 				@Override
+				public GeminiAnalysisResult analyze(
+						String cvText,
+						String jobDescription,
+						List<String> cvKnowledgeHints,
+						List<String> jobKnowledgeHints
+				) {
+					return analyze(cvText, jobDescription);
+				}
+
+				@Override
 				public GeminiAnalysisResult analyze(String cvText, MultipartFile jobImage) {
 					if (simulateImageGeminiUnavailable) {
 						throw new AiServiceUnavailableException(
@@ -680,6 +692,11 @@ class AnalysisControllerTest {
 							List.of("Como disenarias una API REST con Spring Boot?"),
 							jobSearchProfile()
 					);
+				}
+
+				@Override
+				public GeminiAnalysisResult analyze(String cvText, MultipartFile jobImage, List<String> cvKnowledgeHints) {
+					return analyze(cvText, jobImage);
 				}
 
 				private RequirementAssessment assessment(

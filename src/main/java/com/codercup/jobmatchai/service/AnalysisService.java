@@ -42,10 +42,11 @@ public class AnalysisService {
 	private final CvContentValidator cvContentValidator;
 	private final GeminiService geminiService;
 	private final MatchScoreCalculator matchScoreCalculator;
+	private final ProfessionalKnowledgeExtractor professionalKnowledgeExtractor;
 	private final int maxJobDescriptionLength;
 
 	public AnalysisService(PdfService pdfService, GeminiService geminiService, MatchScoreCalculator matchScoreCalculator) {
-		this(pdfService, new CvContentValidator(), geminiService, matchScoreCalculator, 5000);
+		this(pdfService, new CvContentValidator(), geminiService, matchScoreCalculator, new ProfessionalKnowledgeExtractor(), 5000);
 	}
 
 	@org.springframework.beans.factory.annotation.Autowired
@@ -54,23 +55,41 @@ public class AnalysisService {
 			CvContentValidator cvContentValidator,
 			GeminiService geminiService,
 			MatchScoreCalculator matchScoreCalculator,
+			ProfessionalKnowledgeExtractor professionalKnowledgeExtractor,
 			@org.springframework.beans.factory.annotation.Value("${analysis.max-description-length:5000}") int maxJobDescriptionLength
 	) {
 		this.pdfService = pdfService;
 		this.cvContentValidator = cvContentValidator;
 		this.geminiService = geminiService;
 		this.matchScoreCalculator = matchScoreCalculator;
+		this.professionalKnowledgeExtractor = professionalKnowledgeExtractor;
 		this.maxJobDescriptionLength = maxJobDescriptionLength;
+	}
+
+	AnalysisService(
+			PdfService pdfService,
+			CvContentValidator cvContentValidator,
+			GeminiService geminiService,
+			MatchScoreCalculator matchScoreCalculator,
+			int maxJobDescriptionLength
+	) {
+		this(pdfService, cvContentValidator, geminiService, matchScoreCalculator, new ProfessionalKnowledgeExtractor(), maxJobDescriptionLength);
 	}
 
 	public AnalysisResponse analyze(MultipartFile cvFile, String jobDescription, MultipartFile jobImage) {
 		validateRequest(cvFile, jobDescription, jobImage);
 		String cvText = pdfService.extractText(cvFile);
 		cvContentValidator.validate(cvText);
+		List<String> cvKnowledgeHints = professionalKnowledgeExtractor.extractCanonicalNames(cvText);
 
 		GeminiAnalysisResult aiResult = hasText(jobDescription)
-				? geminiService.analyze(cvText, jobDescription)
-				: geminiService.analyze(cvText, jobImage);
+				? geminiService.analyze(
+						cvText,
+						jobDescription,
+						cvKnowledgeHints,
+						professionalKnowledgeExtractor.extractCanonicalNames(jobDescription)
+				)
+				: geminiService.analyze(cvText, jobImage, cvKnowledgeHints);
 
 		return buildAnalysisResponse(aiResult);
 	}

@@ -479,9 +479,24 @@ class AnalysisRegressionSuiteTest {
 		}
 
 		@Override
+		public GeminiAnalysisResult analyze(
+				String cvText,
+				String jobDescription,
+				List<String> cvKnowledgeHints,
+				List<String> jobKnowledgeHints
+		) {
+			return analyze(cvText, jobDescription);
+		}
+
+		@Override
 		public GeminiAnalysisResult analyze(String cvText, MultipartFile jobImage) {
 			imageCalls++;
 			return result;
+		}
+
+		@Override
+		public GeminiAnalysisResult analyze(String cvText, MultipartFile jobImage, List<String> cvKnowledgeHints) {
+			return analyze(cvText, jobImage);
 		}
 	}
 }

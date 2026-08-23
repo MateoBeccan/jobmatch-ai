@@ -1,0 +1,13 @@
+package com.codercup.jobmatchai.service;
+
+public enum ProfessionalDomain {
+	SOFTWARE_DEVELOPMENT,
+	DATA_ANALYTICS,
+	ACCOUNTING_FINANCE,
+	ADMINISTRATION,
+	CUSTOMER_SERVICE,
+	SALES,
+	HUMAN_RESOURCES,
+	OPERATIONS,
+	GENERAL
+}
