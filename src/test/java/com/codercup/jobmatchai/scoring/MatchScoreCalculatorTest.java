@@ -89,7 +89,7 @@ class MatchScoreCalculatorTest {
 	}
 
 	@Test
-	void criticalPartialCapsHighScoreAtEightyFive() {
+	void criticalPartialCapsScoreBelowHighCompatibilityBand() {
 		MatchScoreResult result = calculator.calculate(List.of(
 				assessment("Java", RequirementCategory.MANDATORY_TECHNICAL, RequirementCriticality.NORMAL, RequirementStatus.MATCH),
 				assessment("Spring Boot", RequirementCategory.MANDATORY_TECHNICAL, RequirementCriticality.NORMAL, RequirementStatus.MATCH),
@@ -99,7 +99,7 @@ class MatchScoreCalculatorTest {
 				assessment("Git", RequirementCategory.COMPLEMENTARY, RequirementCriticality.NORMAL, RequirementStatus.MATCH)
 		));
 
-		assertThat(result.matchPercentage()).isEqualTo(85);
+		assertThat(result.matchPercentage()).isEqualTo(79);
 		assertThat(result.basePercentage()).isEqualTo(90);
 		assertThat(result.criticalCapApplied()).isTrue();
 		assertThat(result.criticalMissingCount()).isZero();

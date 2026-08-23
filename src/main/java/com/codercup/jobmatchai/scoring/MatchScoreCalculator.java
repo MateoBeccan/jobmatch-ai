@@ -8,7 +8,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class MatchScoreCalculator {
 
-	private static final int CRITICAL_PARTIAL_SCORE_CAP = 85;
+	private static final int CRITICAL_PARTIAL_SCORE_CAP = 79;
 	private static final int SINGLE_CRITICAL_MISSING_SCORE_CAP = 69;
 	private static final int MULTIPLE_CRITICAL_MISSING_SCORE_CAP = 54;
 
