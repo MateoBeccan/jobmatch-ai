@@ -10,7 +10,7 @@ Además, incorpora **Career Multiverse**, una experiencia de exploración profes
 
 ---
 
-## 🌐 Demo
+##  Demo
 
 | Recurso | Link |
 |---|---|
@@ -19,7 +19,7 @@ Además, incorpora **Career Multiverse**, una experiencia de exploración profes
 
 ---
 
-## 🎯 El problema
+##  El problema
 
 Buscar trabajo no es solo enviar CVs. Muchas veces es difícil entender si un perfil encaja realmente con una oferta, qué requisitos se cumplen, qué habilidades faltan, si el seniority solicitado es compatible y qué conviene mejorar antes de postularse.
 
@@ -29,17 +29,17 @@ También suele faltar una mirada más amplia: qué otros roles podrían tener se
 
 ---
 
-## ✨ Funcionalidades principales
+##  Funcionalidades principales
 
-### 📄 Análisis de CV + oferta
+###  Análisis de CV + oferta
 
 Permite subir un CV en PDF y compararlo contra una oferta laboral ingresada como texto o como imagen.
 
-### 🎯 Compatibilidad
+###  Compatibilidad
 
 Devuelve un porcentaje de compatibilidad y un desglose por categorías: requisitos técnicos obligatorios, experiencia/seniority, deseables y complementarios.
 
-### 🧩 Evaluación de requisitos
+###  Evaluación de requisitos
 
 Extrae requisitos de la oferta y los clasifica como:
 
@@ -49,31 +49,31 @@ Extrae requisitos de la oferta y los clasifica como:
 | `PARTIAL` | El CV cubre una parte real del requisito. |
 | `MISSING` | No hay evidencia suficiente en el CV. |
 
-### 🚨 Requisitos críticos
+###  Requisitos críticos
 
 Detecta requisitos marcados como críticos por la oferta. Si faltan o están parcialmente cubiertos, pueden limitar el score final.
 
-### 📈 Brecha de experiencia
+###  Brecha de experiencia
 
 Identifica gaps de seniority o experiencia profesional cuando la oferta exige años, nivel o experiencia laboral que el CV no demuestra completamente.
 
-### 💡 Recomendaciones
+###  Recomendaciones
 
 Genera acciones concretas para fortalecer la candidatura sin sugerir exagerar ni inventar habilidades.
 
-### 📝 Optimización del CV
+###  Optimización del CV
 
 El frontend muestra sugerencias orientadas a comunicar mejor el perfil, reforzar evidencia y priorizar requisitos relevantes.
 
-### 💬 Preparación para entrevistas
+###  Preparación para entrevistas
 
 Genera preguntas relacionadas con la oferta, las tecnologías clave y las brechas detectadas.
 
-### 🔎 Exploración de oportunidades
+###  Exploración de oportunidades
 
 Crea un `JobSearchProfile` con rol, seniority y keywords para buscar ofertas remotas relevantes.
 
-### 🌌 Career Multiverse
+###  Career Multiverse
 
 Career Multiverse responde una pregunta distinta al análisis de compatibilidad:
 
@@ -91,7 +91,7 @@ Cada camino puede incluir compatibilidad con el mercado, habilidades relacionada
 
 ---
 
-# 🧠 ¿Cómo funciona?
+#  ¿Cómo funciona?
 
 ```text
 CV en PDF + Oferta laboral
@@ -113,7 +113,7 @@ Career Multiverse
 
 ---
 
-## 🏗️ Arquitectura
+##  Arquitectura
 
 ```text
 Frontend React SPA
@@ -153,7 +153,7 @@ Puntos importantes:
 
 ---
 
-# 🎯 Scoring determinístico
+#  Scoring determinístico
 
 > Gemini no decide el porcentaje final de compatibilidad.
 
@@ -178,7 +178,7 @@ Gemini interpreta la oferta y el CV, extrae requisitos estructurados y clasifica
 
 El cálculo agrupa requisitos por categoría, calcula un promedio por categoría y pondera esos promedios según los pesos. Las categorías sin requisitos no participan del cálculo, por lo que el score se normaliza sobre las categorías presentes.
 
-## 🚨 Tratamiento de requisitos críticos
+##  Tratamiento de requisitos críticos
 
 Los requisitos pueden tener criticidad:
 
@@ -200,7 +200,7 @@ El desglose por categorías describe el score base; el porcentaje final puede qu
 
 ---
 
-# 🤖 Integración con Google Gemini
+#  Integración con Google Gemini
 
 El backend usa `com.google.genai:google-genai:1.63.0` y el modelo configurado por defecto es:
 
@@ -232,7 +232,7 @@ Después de recibir la respuesta, el backend valida y normaliza:
 
 ---
 
-# 🛡️ Defensas del análisis
+#  Defensas del análisis
 
 ### Prompt injection
 
@@ -259,7 +259,7 @@ El prompt contempla requisitos alternativos y acumulativos:
 
 ---
 
-# 🔤 Normalización de skills
+#  Normalización de skills
 
 `SkillNormalizer` y `ProfessionalKnowledgeCatalog` normalizan aliases técnicos seguros para comparar habilidades sin inventar equivalencias fuertes.
 
@@ -288,7 +288,7 @@ Ejemplos que no deben tratarse como equivalencias automáticas:
 
 ---
 
-# 🔎 Búsqueda de oportunidades
+#  Búsqueda de oportunidades
 
 El análisis genera un `JobSearchProfile` basado principalmente en el CV:
 
@@ -310,7 +310,7 @@ La búsqueda usa la API de [Jobicy](https://jobicy.com/) para obtener ofertas re
 
 ---
 
-# 🕘 Historial
+#  Historial
 
 El historial principal del frontend se guarda en `localStorage` bajo la key:
 
@@ -332,7 +332,7 @@ El backend también tiene endpoints `/api/analyses` respaldados por H2, pero el 
 
 ---
 
-# 🛠️ Tecnologías
+#  Tecnologías
 
 ### Backend
 
@@ -375,7 +375,7 @@ No hay configuración de Render o Railway versionada en el repositorio.
 
 ---
 
-# 📋 Requisitos para desarrollo
+#  Requisitos para desarrollo
 
 | Requisito | Versión / detalle |
 |---|---|
@@ -387,7 +387,7 @@ No hay configuración de Render o Railway versionada en el repositorio.
 
 ---
 
-# 🚀 Ejecución local
+#  Ejecución local
 
 Clonar el repositorio:
 
@@ -437,7 +437,7 @@ URLs locales:
 
 ---
 
-# 🔌 API REST
+#  API REST
 
 ## Endpoints
 
@@ -545,7 +545,7 @@ Respuesta abreviada:
 
 ---
 
-# ⚠️ Manejo de errores
+#  Manejo de errores
 
 | HTTP | Código | Caso |
 |---:|---|---|
@@ -570,7 +570,7 @@ Respuesta abreviada:
 
 ---
 
-# 🧪 Testing
+#  Testing
 
 ## Backend
 
@@ -638,7 +638,7 @@ Existe una suite documentada como `REG-001` a `REG-012`, orientada a evitar regr
 
 ---
 
-# 🔄 CI/CD
+#  CI/CD
 
 GitHub Actions ejecuta CI en push a `main` y en Pull Requests:
 
@@ -670,7 +670,7 @@ Workflow real (`.github/workflows/ci.yml`):
 
 ---
 
-# 🏗️ Build
+#  Build
 
 Backend:
 
@@ -694,7 +694,7 @@ npm run typecheck --prefix frontend
 
 ---
 
-# 🐳 Docker
+#  Docker
 
 El repositorio incluye `Dockerfile` multi-stage:
 
@@ -707,7 +707,7 @@ La imagen compila con `eclipse-temurin:21-jdk-jammy` y ejecuta el JAR con `eclip
 
 ---
 
-# 📁 Estructura general
+#  Estructura general
 
 ```text
 jobmatch-ai/
@@ -759,7 +759,7 @@ El proyecto fue desarrollado de forma colaborativa e iterativa, dividiendo respo
 
 ---
 
-# 🏆 CoderCup AI 2026
+#  CoderCup AI 2026
 
 JobMatch AI fue desarrollado para la CoderCup AI de Coderhouse.
 
@@ -769,7 +769,7 @@ La idea central es usar IA no solo para automatizar una evaluación, sino para *
 
 ---
 
-# 🔮 Próximos pasos
+#  Próximos pasos
 
 - ampliar Career Multiverse;
 - sumar nuevas fuentes de empleos;
@@ -780,8 +780,5 @@ La idea central es usar IA no solo para automatizar una evaluación, sino para *
 
 ---
 
-## ⭐ JobMatch AI
 
-**Analizá tu perfil. Descubrí oportunidades. Explorá tu futuro profesional.**
 
-Si el proyecto te resulta interesante, podés dejar una ⭐ en el repositorio.
