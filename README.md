@@ -15,8 +15,7 @@ Además, incorpora **Career Multiverse**, una experiencia de exploración profes
 | Recurso | Link |
 |---|---|
 | Aplicación | https://jobmatch-ai-ten.vercel.app/ |
-| Repositorio | https://github.com/MateoBeccan/jobmatch-ai |
-| Video de presentación | _Agregar link público del video_ |
+
 
 ---
 
